@@ -75,7 +75,35 @@ model User {
 
   logs              UserActionLog[]
 
+  verificationCodes VerificationCode[]
+
   @@map("users")
+}
+
+//////////////////////////////////////////////////////
+// VERIFICATION CODES
+//////////////////////////////////////////////////////
+
+model VerificationCode {
+  id                String   @id @default(uuid()) @db.Uuid
+
+  userId            String   @map("user_id") @db.Uuid
+
+  code              String   @db.VarChar(6)
+
+  type              String   @db.VarChar(50) // 'email_verification' or 'password_reset'
+
+  expiresAt         DateTime @map("expires_at")
+
+  used              Boolean  @default(false)
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+  @@map("verification_codes")
 }
 
 //////////////////////////////////////////////////////
@@ -463,8 +491,27 @@ model UserActionLog {
 }
 
 //////////////////////////////////////////////////////
-// SETTINGS
+// PENDING REGISTRATIONS (до подтверждения email)
 //////////////////////////////////////////////////////
+
+model PendingRegistration {
+  id                String   @id @default(uuid()) @db.Uuid
+
+  email             String   @unique @db.VarChar(255)
+
+  passwordHash      String   @map("password_hash") @db.VarChar(255)
+
+  name              String?  @db.VarChar(255)
+
+  code              String   @db.VarChar(6)
+
+  expiresAt         DateTime @map("expires_at")
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([email])
+  @@map("pending_registrations")
+}
 
 model Setting {
   id                  String   @id @default(uuid()) @db.Uuid
@@ -476,4 +523,25 @@ model Setting {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("settings")
+}
+
+//////////////////////////////////////////////////////
+// ADMIN TELEGRAM CODES (временные коды для 2FA)
+//////////////////////////////////////////////////////
+
+model AdminTelegramCode {
+  id          String   @id @default(uuid()) @db.Uuid
+
+  userId      String   @map("user_id") @db.Uuid
+
+  code        String   @db.VarChar(6)
+
+  expiresAt   DateTime @map("expires_at")
+
+  used        Boolean  @default(false)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("admin_telegram_codes")
 }
