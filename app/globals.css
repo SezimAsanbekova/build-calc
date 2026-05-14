@@ -85,3 +85,15 @@ html {
 .animate-count {
   animation: countUp 1s ease-out;
 }
+
+/* Admin: скрыть нативные стрелки у number input */
+.admin-number-input::-webkit-outer-spin-button,
+.admin-number-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.admin-number-input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

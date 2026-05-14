@@ -9,7 +9,6 @@ import {
   FileText,
   BarChart3,
   TrendingUp,
-  Activity,
   Calculator,
   Tag,
 } from 'lucide-react';
@@ -81,12 +80,6 @@ function DashboardContent({ admin }: { admin: AdminUser }) {
     },
   ];
 
-  const recentActivity = [
-    { icon: Users, text: 'Управление пользователями', sub: '/admin/users', color: 'text-blue-400' },
-    { icon: Package, text: 'Каталог материалов', sub: '/admin/materials', color: 'text-purple-400' },
-    { icon: Tag, text: 'Категории и производители', sub: '/admin/categories', color: 'text-green-400' },
-    { icon: BarChart3, text: 'Статистика системы', sub: '/admin/statistics', color: 'text-amber-400' },
-  ];
 
   return (
     <main className="flex-1 overflow-auto">
@@ -141,63 +134,7 @@ function DashboardContent({ admin }: { admin: AdminUser }) {
           })}
         </div>
 
-        {/* Quick access + System info */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Quick access */}
-          <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-6">
-            <div className="flex items-center space-x-2 mb-5">
-              <Activity className="w-5 h-5 text-amber-400" />
-              <h3 className="text-base font-semibold text-white">Быстрый доступ</h3>
-            </div>
-            <div className="space-y-2">
-              {recentActivity.map((item, i) => {
-                const Icon = item.icon;
-                return (
-                  <a
-                    key={i}
-                    href={item.sub}
-                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-slate-700/40 transition-colors group"
-                  >
-                    <div className="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Icon className={`w-4 h-4 ${item.color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
-                        {item.text}
-                      </p>
-                      <p className="text-xs text-slate-500">{item.sub}</p>
-                    </div>
-                    <TrendingUp className="w-3 h-3 text-slate-600 group-hover:text-amber-400 transition-colors" />
-                  </a>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* System info */}
-          <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-6">
-            <div className="flex items-center space-x-2 mb-5">
-              <BarChart3 className="w-5 h-5 text-amber-400" />
-              <h3 className="text-base font-semibold text-white">Информация о системе</h3>
-            </div>
-            <div className="space-y-3">
-              {[
-                { label: 'Версия приложения', value: 'BuildCalc AI v0.1.0' },
-                { label: 'База данных', value: 'PostgreSQL + Prisma' },
-                { label: 'Фреймворк', value: 'Next.js 16.2' },
-                { label: 'Роль', value: 'Администратор', highlight: true },
-                { label: 'Статус', value: 'Работает', green: true },
-              ].map((row, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/50 last:border-0">
-                  <span className="text-xs text-slate-500">{row.label}</span>
-                  <span className={`text-xs font-medium ${row.highlight ? 'text-amber-400' : row.green ? 'text-green-400' : 'text-slate-300'}`}>
-                    {row.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
     </main>
   );
