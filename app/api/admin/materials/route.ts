@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
       imageUrl,
       isAvailable,
       isActive,
+      forceCreate, // Флаг принудительного создания
     } = body;
 
     // Валидация
@@ -86,6 +87,66 @@ export async function POST(request: NextRequest) {
     }
     if (price === undefined || consumptionPerM2 === undefined || packageQuantity === undefined) {
       return NextResponse.json({ error: 'Укажите числовые параметры' }, { status: 400 });
+    }
+
+    // Проверка на похожие товары (только если не принудительное создание)
+    if (!forceCreate) {
+      const similarMaterials = await prisma.material.findMany({
+        where: {
+          deletedAt: null,
+          name: {
+            contains: name.trim(),
+            mode: 'insensitive',
+          },
+          categoryId,
+          manufacturerId,
+        },
+        include: {
+          category: { select: { name: true } },
+          manufacturer: { select: { name: true } },
+        },
+        take: 5,
+      });
+
+      // Если найдены точные совпадения по названию, категории и производителю
+      const exactMatch = similarMaterials.find(
+        (m) => m.name.toLowerCase().trim() === name.toLowerCase().trim()
+      );
+
+      if (exactMatch) {
+        return NextResponse.json(
+          {
+            error: 'Материал с таким названием уже существует',
+            similarMaterials: similarMaterials.map((m) => ({
+              id: m.id,
+              name: m.name,
+              category: m.category.name,
+              manufacturer: m.manufacturer.name,
+              repairLevel: m.repairLevel,
+              price: m.price,
+            })),
+          },
+          { status: 409 }
+        );
+      }
+
+      // Если найдены похожие товары, возвращаем предупреждение
+      if (similarMaterials.length > 0) {
+        return NextResponse.json(
+          {
+            warning: 'Найдены похожие материалы',
+            similarMaterials: similarMaterials.map((m) => ({
+              id: m.id,
+              name: m.name,
+              category: m.category.name,
+              manufacturer: m.manufacturer.name,
+              repairLevel: m.repairLevel,
+              price: m.price,
+            })),
+          },
+          { status: 200 }
+        );
+      }
     }
 
     // Генерируем уникальный slug

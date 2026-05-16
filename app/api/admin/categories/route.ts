@@ -53,8 +53,58 @@ export async function POST(request: NextRequest) {
     const admin = await requireAdmin();
     if (!admin) return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
 
-    const { name } = await request.json();
+    const { name, forceCreate } = await request.json();
     if (!name) return NextResponse.json({ error: 'Название обязательно' }, { status: 400 });
+
+    // Проверка на дубликаты (только если не принудительное создание)
+    if (!forceCreate) {
+      // Точное совпадение
+      const exactMatch = await prisma.category.findFirst({
+        where: {
+          name: {
+            equals: name.trim(),
+            mode: 'insensitive',
+          },
+        },
+      });
+
+      if (exactMatch) {
+        return NextResponse.json(
+          {
+            error: 'Категория с таким названием уже существует',
+            existingCategory: {
+              id: exactMatch.id,
+              name: exactMatch.name,
+            },
+          },
+          { status: 409 }
+        );
+      }
+
+      // Похожие категории
+      const similarCategories = await prisma.category.findMany({
+        where: {
+          name: {
+            contains: name.trim(),
+            mode: 'insensitive',
+          },
+        },
+        take: 5,
+      });
+
+      if (similarCategories.length > 0) {
+        return NextResponse.json(
+          {
+            warning: 'Найдены похожие категории',
+            similarCategories: similarCategories.map((c) => ({
+              id: c.id,
+              name: c.name,
+            })),
+          },
+          { status: 200 }
+        );
+      }
+    }
 
     let baseSlug = slugify(name);
     if (!baseSlug) baseSlug = 'category';

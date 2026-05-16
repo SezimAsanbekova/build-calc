@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   User,
   Mail,
@@ -11,7 +11,10 @@ import {
   Edit,
   Camera,
   Save,
-  X
+  X,
+  Trash2,
+  Loader,
+  AlertCircle,
 } from 'lucide-react';
 
 interface UserData {
@@ -31,8 +34,13 @@ export default function ProfilePage() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [formData, setFormData] = useState({ name: '', email: '' });
 
+  // Avatar
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+
   useEffect(() => {
-    // Пробуем получить данные пользователя через auth-token (после email верификации)
     const fetchUser = async () => {
       try {
         const res = await fetch('/api/auth/me');
@@ -47,10 +55,9 @@ export default function ProfilePage() {
           return;
         }
       } catch {
-        // игнорируем
+        // ignore
       }
 
-      // Если auth-token не сработал — проверяем NextAuth сессию
       if (status === 'unauthenticated') {
         router.push('/login');
       }
@@ -62,7 +69,6 @@ export default function ProfilePage() {
     }
   }, [status, router]);
 
-  // Синхронизируем данные из NextAuth сессии если auth-token не дал результата
   useEffect(() => {
     if (session?.user && !userData) {
       setUserData({
@@ -79,20 +85,76 @@ export default function ProfilePage() {
     }
   }, [session, userData]);
 
+  // Закрытие меню аватара по клику вне
+  useEffect(() => {
+    if (!avatarMenuOpen) return;
+    const handler = () => setAvatarMenuOpen(false);
+    const timeoutId = setTimeout(
+      () => document.addEventListener('click', handler),
+      0
+    );
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handler);
+    };
+  }, [avatarMenuOpen]);
+
   const isLoading = status === 'loading' || loadingUser;
-  const user = userData || (session?.user ? {
-    id: session.user.id,
-    email: session.user.email,
-    name: session.user.name,
-    avatar: session.user.image,
-    role: session.user.role,
-  } : null);
+  const user =
+    userData ||
+    (session?.user
+      ? {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name,
+          avatar: session.user.image,
+          role: session.user.role,
+        }
+      : null);
+
+  const handleAvatarFile = async (file: File) => {
+    setAvatarError('');
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/auth/avatar', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        setAvatarError(data.error || 'Ошибка загрузки');
+        return;
+      }
+      setUserData((prev) => (prev ? { ...prev, avatar: data.avatarUrl } : data.user));
+    } catch {
+      setAvatarError('Произошла ошибка. Попробуйте снова.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    setAvatarError('');
+    setUploadingAvatar(true);
+    try {
+      const res = await fetch('/api/auth/avatar', { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        setAvatarError(data.error || 'Ошибка удаления');
+        return;
+      }
+      setUserData((prev) => (prev ? { ...prev, avatar: null } : data.user));
+    } catch {
+      setAvatarError('Произошла ошибка. Попробуйте снова.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Загрузка...</p>
         </div>
       </div>
@@ -113,6 +175,10 @@ export default function ProfilePage() {
       day: 'numeric',
     });
   };
+
+  // Первая буква имени для дефолтного аватара
+  const initial = (user.name || user.email)[0].toUpperCase();
+  const hasAvatar = !!user.avatar;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -138,26 +204,92 @@ export default function ProfilePage() {
         {/* Profile Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {/* Cover */}
-          <div className="h-32 bg-gradient-to-r from-blue-500 to-purple-600"></div>
+          <div className="h-32 bg-gradient-to-r from-blue-500 to-purple-600" />
 
           {/* Avatar Section */}
           <div className="px-8 pb-8">
             <div className="flex items-end justify-between -mt-16 mb-6">
               <div className="relative">
-                {user.avatar ? (
+                {/* Avatar */}
+                {hasAvatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={user.avatar}
+                    src={user.avatar!}
                     alt={user.name || 'User'}
-                    className="w-32 h-32 rounded-full border-4 border-white shadow-lg"
+                    className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover bg-white"
                   />
                 ) : (
                   <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                    <User className="w-16 h-16 text-white" />
+                    <span className="text-5xl font-bold text-white">{initial}</span>
                   </div>
                 )}
-                <button className="absolute bottom-0 right-0 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors border border-gray-200">
-                  <Camera className="w-5 h-5 text-gray-600" />
-                </button>
+
+                {/* Loading overlay */}
+                {uploadingAvatar && (
+                  <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
+                    <Loader className="w-8 h-8 text-white animate-spin" />
+                  </div>
+                )}
+
+                {/* Avatar action button */}
+                <div className="absolute bottom-0 right-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAvatarMenuOpen((o) => !o);
+                    }}
+                    disabled={uploadingAvatar}
+                    className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full shadow-lg flex items-center justify-center hover:shadow-xl hover:scale-105 transition-all border-2 border-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Изменить аватар"
+                  >
+                    <Camera className="w-5 h-5 text-white" />
+                  </button>
+
+                  {/* Menu */}
+                  {avatarMenuOpen && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute top-12 left-0 w-52 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-30"
+                    >
+                      <button
+                        onClick={() => {
+                          fileInputRef.current?.click();
+                          setAvatarMenuOpen(false);
+                        }}
+                        className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>{hasAvatar ? 'Загрузить новое' : 'Загрузить фото'}</span>
+                      </button>
+                      {hasAvatar && (
+                        <button
+                          onClick={() => {
+                            handleAvatarDelete();
+                            setAvatarMenuOpen(false);
+                          }}
+                          className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Удалить фото</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleAvatarFile(file);
+                    e.target.value = '';
+                  }}
+                />
               </div>
 
               {!isEditing ? (
@@ -191,6 +323,14 @@ export default function ProfilePage() {
               )}
             </div>
 
+            {/* Avatar error */}
+            {avatarError && (
+              <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-800">{avatarError}</p>
+              </div>
+            )}
+
             {/* Profile Info */}
             <div className="space-y-6">
               {/* Name */}
@@ -206,7 +346,7 @@ export default function ProfilePage() {
                   />
                 ) : (
                   <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-lg">
-                    <User className="w-5 h-5 text-gray-400" />
+                    <User className="w-5 h-5 text-blue-600" />
                     <span className="text-gray-900">{user.name || 'Не указано'}</span>
                   </div>
                 )}
@@ -216,7 +356,7 @@ export default function ProfilePage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                 <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-lg">
-                  <Mail className="w-5 h-5 text-gray-400" />
+                  <Mail className="w-5 h-5 text-blue-600" />
                   <span className="text-gray-900">{user.email}</span>
                 </div>
               </div>
@@ -225,7 +365,7 @@ export default function ProfilePage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Роль</label>
                 <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-lg">
-                  <Shield className="w-5 h-5 text-gray-400" />
+                  <Shield className="w-5 h-5 text-purple-600" />
                   <span className="text-gray-900">
                     {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
                   </span>
@@ -236,7 +376,7 @@ export default function ProfilePage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Дата регистрации</label>
                 <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-lg">
-                  <Calendar className="w-5 h-5 text-gray-400" />
+                  <Calendar className="w-5 h-5 text-purple-600" />
                   <span className="text-gray-900">{formatDate(userData?.createdAt)}</span>
                 </div>
               </div>

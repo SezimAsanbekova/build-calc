@@ -19,14 +19,18 @@ export default function CategoryFormModal({ open, initial, onClose, onSaved }: P
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [similarCategories, setSimilarCategories] = useState<any[]>([]);
+  const [showSimilarWarning, setShowSimilarWarning] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? '');
     setError('');
+    setSimilarCategories([]);
+    setShowSimilarWarning(false);
   }, [open, initial]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, forceCreate = false) => {
     e.preventDefault();
     setError('');
 
@@ -42,11 +46,30 @@ export default function CategoryFormModal({ open, initial, onClose, onSaved }: P
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ name: name.trim(), forceCreate }),
       });
 
+      const data = await res.json();
+
+      // Если найдены похожие категории (только при создании новой)
+      if (!initial?.id && res.status === 200 && data.warning && data.similarCategories) {
+        setSimilarCategories(data.similarCategories);
+        setShowSimilarWarning(true);
+        setSaving(false);
+        return;
+      }
+
+      // Если точное совпадение
+      if (res.status === 409) {
+        setError(data.error || 'Категория уже существует');
+        if (data.existingCategory) {
+          setSimilarCategories([data.existingCategory]);
+        }
+        setSaving(false);
+        return;
+      }
+
       if (!res.ok) {
-        const data = await res.json();
         setError(data.error || 'Ошибка при сохранении');
         setSaving(false);
         return;
@@ -95,6 +118,52 @@ export default function CategoryFormModal({ open, initial, onClose, onSaved }: P
             <div className="p-3 bg-red-900/40 border border-red-700 rounded-lg flex items-start space-x-2">
               <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-300">{error}</p>
+            </div>
+          )}
+
+          {/* Предупреждение о похожих категориях */}
+          {showSimilarWarning && similarCategories.length > 0 && (
+            <div className="p-4 bg-amber-900/40 border border-amber-700 rounded-lg space-y-3">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-300 mb-2">
+                    Найдены похожие категории
+                  </p>
+                  <div className="space-y-2 mb-3">
+                    {similarCategories.map((c) => (
+                      <div
+                        key={c.id}
+                        className="p-2 bg-slate-800/60 rounded border border-slate-700 text-xs"
+                      >
+                        <p className="text-white font-medium">{c.name}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSimilarWarning(false);
+                        setSimilarCategories([]);
+                      }}
+                      className="px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        setShowSimilarWarning(false);
+                        handleSubmit(e, true);
+                      }}
+                      className="px-3 py-1.5 text-xs bg-amber-500 text-white rounded hover:bg-amber-600 transition-colors font-medium"
+                    >
+                      Всё равно добавить
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

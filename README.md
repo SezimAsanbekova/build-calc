@@ -149,6 +149,69 @@ UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';
 
 ---
 
+## 📦 Настройка AWS S3 для хранения изображений
+
+Система использует AWS S3 для хранения изображений материалов и аватаров пользователей.
+
+### Шаги настройки
+
+1. **Создайте AWS аккаунт** на [aws.amazon.com](https://aws.amazon.com/)
+
+2. **Создайте S3 bucket:**
+   - Откройте [S3 Console](https://s3.console.aws.amazon.com/)
+   - Нажмите "Create bucket"
+   - Имя: `buildcalc-materials` (или любое уникальное)
+   - Region: выберите ближайший регион (например, `us-east-1`)
+   - Снимите галочку "Block all public access" (нужен публичный доступ к изображениям)
+   - Нажмите "Create bucket"
+
+3. **Настройте CORS для bucket:**
+   - Откройте созданный bucket
+   - Перейдите в "Permissions" → "CORS"
+   - Добавьте конфигурацию:
+   ```json
+   [
+     {
+       "AllowedHeaders": ["*"],
+       "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
+       "AllowedOrigins": ["http://localhost:3000", "https://yourdomain.com"],
+       "ExposeHeaders": []
+     }
+   ]
+   ```
+
+4. **Создайте IAM пользователя:**
+   - Откройте [IAM Console](https://console.aws.amazon.com/iam/)
+   - Users → Add users
+   - Имя: `buildcalc-s3-uploader`
+   - Access type: "Programmatic access"
+   - Permissions: "Attach existing policies directly" → `AmazonS3FullAccess`
+   - Сохраните **Access Key ID** и **Secret Access Key**
+
+5. **Добавьте настройки в `.env`:**
+   ```env
+   AWS_REGION="us-east-1"
+   AWS_ACCESS_KEY_ID="ваш-access-key-id"
+   AWS_SECRET_ACCESS_KEY="ваш-secret-access-key"
+   AWS_S3_BUCKET_NAME="buildcalc-materials"
+   AWS_S3_PUBLIC_URL="https://buildcalc-materials.s3.amazonaws.com"
+   ```
+
+6. **Перезапустите сервер:**
+   ```bash
+   npm run dev
+   ```
+
+### Использование
+
+После настройки в админ-панели при добавлении/редактировании материала:
+- Нажмите кнопку "Загрузить изображение"
+- Выберите файл (JPG, PNG, WEBP, макс 5MB)
+- Изображение автоматически загрузится в S3
+- URL изображения сохранится в базе данных
+
+---
+
 ## 🔐 Настройка Google OAuth
 
 Для включения входа через Google:

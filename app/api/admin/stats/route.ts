@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [users, materials, calculations, estimates] = await Promise.all([
-      prisma.user.count(),
+      prisma.user.count({ where: { role: 'user' } }),
       prisma.material.count(),
       prisma.calculation.count(),
       prisma.estimate.count(),

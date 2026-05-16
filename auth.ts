@@ -86,17 +86,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
+      // При первом входе подставляем данные из user
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
+        token.role = (user as { role?: string }).role || 'user';
       }
+
+      // Для Google: user.id это Google ID, нам нужен UUID из БД
+      if (account?.provider === 'google' && token.email) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: token.email as string },
+          select: { id: true, role: true, avatar: true },
+        });
+        if (dbUser) {
+          token.id = dbUser.id;
+          token.role = dbUser.role;
+          token.picture = dbUser.avatar || token.picture;
+        }
+      } else if (user?.id) {
+        // Для credentials провайдера — id уже наш UUID
+        token.id = user.id;
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        if (token.picture) {
+          session.user.image = token.picture as string;
+        }
       }
       return session;
     },

@@ -21,15 +21,19 @@ export default function ManufacturerFormModal({ open, initial, onClose, onSaved 
   const [country, setCountry] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [similarManufacturers, setSimilarManufacturers] = useState<any[]>([]);
+  const [showSimilarWarning, setShowSimilarWarning] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? '');
     setCountry(initial?.country ?? '');
     setError('');
+    setSimilarManufacturers([]);
+    setShowSimilarWarning(false);
   }, [open, initial]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, forceCreate = false) => {
     e.preventDefault();
     setError('');
 
@@ -50,11 +54,31 @@ export default function ManufacturerFormModal({ open, initial, onClose, onSaved 
         body: JSON.stringify({
           name: name.trim(),
           country: country.trim() || null,
+          forceCreate,
         }),
       });
 
+      const data = await res.json();
+
+      // Если найдены похожие производители (только при создании нового)
+      if (!initial?.id && res.status === 200 && data.warning && data.similarManufacturers) {
+        setSimilarManufacturers(data.similarManufacturers);
+        setShowSimilarWarning(true);
+        setSaving(false);
+        return;
+      }
+
+      // Если точное совпадение
+      if (res.status === 409) {
+        setError(data.error || 'Производитель уже существует');
+        if (data.existingManufacturer) {
+          setSimilarManufacturers([data.existingManufacturer]);
+        }
+        setSaving(false);
+        return;
+      }
+
       if (!res.ok) {
-        const data = await res.json();
         setError(data.error || 'Ошибка при сохранении');
         setSaving(false);
         return;
@@ -106,6 +130,53 @@ export default function ManufacturerFormModal({ open, initial, onClose, onSaved 
             <div className="p-3 bg-red-900/40 border border-red-700 rounded-lg flex items-start space-x-2">
               <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-300">{error}</p>
+            </div>
+          )}
+
+          {/* Предупреждение о похожих производителях */}
+          {showSimilarWarning && similarManufacturers.length > 0 && (
+            <div className="p-4 bg-amber-900/40 border border-amber-700 rounded-lg space-y-3">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-300 mb-2">
+                    Найдены похожие производители
+                  </p>
+                  <div className="space-y-2 mb-3">
+                    {similarManufacturers.map((m) => (
+                      <div
+                        key={m.id}
+                        className="p-2 bg-slate-800/60 rounded border border-slate-700 text-xs"
+                      >
+                        <p className="text-white font-medium">{m.name}</p>
+                        {m.country && <p className="text-slate-400">{m.country}</p>}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSimilarWarning(false);
+                        setSimilarManufacturers([]);
+                      }}
+                      className="px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        setShowSimilarWarning(false);
+                        handleSubmit(e, true);
+                      }}
+                      className="px-3 py-1.5 text-xs bg-amber-500 text-white rounded hover:bg-amber-600 transition-colors font-medium"
+                    >
+                      Всё равно добавить
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

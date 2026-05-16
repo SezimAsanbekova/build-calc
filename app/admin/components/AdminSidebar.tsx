@@ -84,7 +84,7 @@ export default function AdminSidebar({ adminName, adminEmail }: AdminSidebarProp
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className={`flex items-center h-16 px-4 border-b border-slate-700 flex-shrink-0 ${collapsed ? 'justify-center' : 'space-x-3'}`}>
+      <div className={`flex items-center h-16 px-4 border-b border-slate-700 flex-shrink-0 bg-slate-800/50 ${collapsed ? 'justify-center' : 'space-x-3'}`}>
         <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center flex-shrink-0">
           <Shield className="w-5 h-5 text-white" />
         </div>
@@ -210,7 +210,7 @@ export default function AdminSidebar({ adminName, adminEmail }: AdminSidebarProp
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-20 w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600 transition-all"
+          className="absolute -right-3 top-7 w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600 transition-all z-10"
         >
           {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
         </button>

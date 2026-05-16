@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { X, Save, Loader, AlertCircle, Plus } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { X, Save, Loader, AlertCircle, Plus, Upload, Image as ImageIcon } from 'lucide-react';
 import AdminSelect from './AdminSelect';
 import NumberInput from './NumberInput';
 import AdminCheckbox from './AdminCheckbox';
@@ -74,6 +74,10 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [similarMaterials, setSimilarMaterials] = useState<any[]>([]);
+  const [showSimilarWarning, setShowSimilarWarning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Inline create category/manufacturer
   const [newCategory, setNewCategory] = useState('');
@@ -85,6 +89,8 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
     if (!open) return;
     setForm({ ...emptyForm, ...initial });
     setError('');
+    setSimilarMaterials([]);
+    setShowSimilarWarning(false);
     fetchOptions();
   }, [open, initial]);
 
@@ -151,7 +157,53 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Проверка типа файла
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Недопустимый тип файла. Разрешены: JPG, PNG, WEBP');
+      return;
+    }
+
+    // Проверка размера (макс 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError('Файл слишком большой. Максимум 5MB');
+      return;
+    }
+
+    setUploadingImage(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'materials');
+
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Ошибка загрузки изображения');
+        return;
+      }
+
+      const data = await res.json();
+      setForm({ ...form, imageUrl: data.url });
+    } catch {
+      setError('Произошла ошибка при загрузке изображения');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent, forceCreate = false) => {
     e.preventDefault();
     setError('');
 
@@ -175,11 +227,31 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
           consumptionPerM2: Number(form.consumptionPerM2),
           packageQuantity: Number(form.packageQuantity),
           stockQuantity: Number(form.stockQuantity),
+          forceCreate, // Флаг для принудительного создания
         }),
       });
 
+      const data = await res.json();
+
+      // Если найдены похожие материалы (только при создании нового)
+      if (!form.id && res.status === 200 && data.warning && data.similarMaterials) {
+        setSimilarMaterials(data.similarMaterials);
+        setShowSimilarWarning(true);
+        setSaving(false);
+        return;
+      }
+
+      // Если точное совпадение
+      if (res.status === 409) {
+        setError(data.error || 'Материал уже существует');
+        if (data.similarMaterials) {
+          setSimilarMaterials(data.similarMaterials);
+        }
+        setSaving(false);
+        return;
+      }
+
       if (!res.ok) {
-        const data = await res.json();
         setError(data.error || 'Ошибка при сохранении');
         setSaving(false);
         return;
@@ -225,6 +297,55 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
             <div className="p-3 bg-red-900/40 border border-red-700 rounded-lg flex items-start space-x-2">
               <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-300">{error}</p>
+            </div>
+          )}
+
+          {/* Предупреждение о похожих материалах */}
+          {showSimilarWarning && similarMaterials.length > 0 && (
+            <div className="p-4 bg-amber-900/40 border border-amber-700 rounded-lg space-y-3">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-300 mb-2">
+                    Найдены похожие материалы
+                  </p>
+                  <div className="space-y-2 mb-3">
+                    {similarMaterials.map((m) => (
+                      <div
+                        key={m.id}
+                        className="p-2 bg-slate-800/60 rounded border border-slate-700 text-xs"
+                      >
+                        <p className="text-white font-medium">{m.name}</p>
+                        <p className="text-slate-400">
+                          {m.category} • {m.manufacturer} • {m.repairLevel} • {Number(m.price).toLocaleString('ru-RU')} ₽
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSimilarWarning(false);
+                        setSimilarMaterials([]);
+                      }}
+                      className="px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        setShowSimilarWarning(false);
+                        handleSubmit(e, true);
+                      }}
+                      className="px-3 py-1.5 text-xs bg-amber-500 text-white rounded hover:bg-amber-600 transition-colors font-medium"
+                    >
+                      Всё равно добавить
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -425,16 +546,62 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
             </div>
           </div>
 
-          {/* Image URL */}
+          {/* Image Upload */}
           <div>
-            <label className={labelCls}>URL изображения</label>
-            <input
-              type="url"
-              value={form.imageUrl}
-              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-              placeholder="https://..."
-              className={inputCls}
-            />
+            <label className={labelCls}>Изображение материала</label>
+            <div className="flex gap-3">
+              {/* Preview */}
+              {form.imageUrl && (
+                <div className="w-24 h-24 rounded-lg overflow-hidden bg-slate-700/50 border border-slate-600 flex-shrink-0">
+                  <img
+                    src={form.imageUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Upload button */}
+              <div className="flex-1 flex flex-col gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                  className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-700/50 border border-slate-600 text-slate-300 hover:text-white hover:border-amber-500 rounded-lg transition-all disabled:opacity-50"
+                >
+                  {uploadingImage ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Загрузка...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span className="text-sm">Загрузить изображение</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-slate-500">
+                  JPG, PNG или WEBP. Максимум 5MB. Изображение будет загружено в S3.
+                </p>
+                {form.imageUrl && (
+                  <input
+                    type="url"
+                    value={form.imageUrl}
+                    onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                    placeholder="https://..."
+                    className={inputCls + ' text-xs'}
+                  />
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Description */}

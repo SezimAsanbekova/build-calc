@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, Search, Shield, User, Mail, Calendar } from 'lucide-react';
+import { Users, Search, User, Mail, Calendar } from 'lucide-react';
 import AdminPageShell from '@/app/admin/components/AdminPageShell';
 
 interface UserRow {
@@ -89,15 +89,14 @@ function UsersContent() {
           <>
             {/* Header */}
             <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-slate-700 bg-slate-800/60">
-              <div className="col-span-4 flex items-center space-x-1 text-xs font-medium text-slate-400 uppercase tracking-wider">
+              <div className="col-span-5 flex items-center space-x-1 text-xs font-medium text-slate-400 uppercase tracking-wider">
                 <User className="w-3 h-3" />
                 <span>Пользователь</span>
               </div>
-              <div className="col-span-3 flex items-center space-x-1 text-xs font-medium text-slate-400 uppercase tracking-wider">
+              <div className="col-span-4 flex items-center space-x-1 text-xs font-medium text-slate-400 uppercase tracking-wider">
                 <Mail className="w-3 h-3" />
                 <span>Email</span>
               </div>
-              <div className="col-span-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Роль</div>
               <div className="col-span-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Статус</div>
               <div className="col-span-1 flex items-center space-x-1 text-xs font-medium text-slate-400 uppercase tracking-wider">
                 <Calendar className="w-3 h-3" />
@@ -110,7 +109,7 @@ function UsersContent() {
                 key={user.id}
                 className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-slate-700/50 last:border-0 hover:bg-slate-700/20 transition-colors"
               >
-                <div className="col-span-4 flex items-center space-x-3">
+                <div className="col-span-5 flex items-center space-x-3">
                   <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-xs font-bold text-white">
                       {(user.name || user.email)[0].toUpperCase()}
@@ -118,20 +117,8 @@ function UsersContent() {
                   </div>
                   <span className="text-sm text-white truncate">{user.name || '—'}</span>
                 </div>
-                <div className="col-span-3 flex items-center">
+                <div className="col-span-4 flex items-center">
                   <span className="text-sm text-slate-300 truncate">{user.email}</span>
-                </div>
-                <div className="col-span-2 flex items-center">
-                  {user.role === 'admin' ? (
-                    <span className="inline-flex items-center space-x-1 px-2 py-1 bg-amber-500/15 border border-amber-500/30 rounded-md text-xs text-amber-400">
-                      <Shield className="w-3 h-3" />
-                      <span>Админ</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-1 bg-slate-700/50 border border-slate-600 rounded-md text-xs text-slate-400">
-                      Пользователь
-                    </span>
-                  )}
                 </div>
                 <div className="col-span-2 flex items-center">
                   {user.emailVerified ? (

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Package, Plus, Search, Edit, Trash2, AlertCircle } from 'lucide-react';
 import AdminPageShell from '@/app/admin/components/AdminPageShell';
 import MaterialFormModal, { MaterialFormData } from '@/app/admin/components/MaterialFormModal';
+import AdminSelect from '@/app/admin/components/AdminSelect';
 
 interface MaterialRow {
   id: string;
@@ -58,6 +59,8 @@ function MaterialsContent() {
   const [materials, setMaterials] = useState<MaterialRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [repairLevelFilter, setRepairLevelFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<MaterialFormData> | undefined>(undefined);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -121,34 +124,117 @@ function MaterialsContent() {
     }
   };
 
-  const filtered = materials.filter(
-    (m) =>
+  const filtered = materials.filter((m) => {
+    // Фильтр по поиску
+    const matchesSearch =
       m.name.toLowerCase().includes(search.toLowerCase()) ||
       m.category.name.toLowerCase().includes(search.toLowerCase()) ||
-      m.manufacturer.name.toLowerCase().includes(search.toLowerCase())
-  );
+      m.manufacturer.name.toLowerCase().includes(search.toLowerCase());
+
+    // Фильтр по уровню ремонта
+    const matchesRepairLevel = repairLevelFilter === 'all' || m.repairLevel === repairLevelFilter;
+
+    // Фильтр по дате
+    let matchesDate = true;
+    if (dateFilter !== 'all') {
+      const createdDate = new Date(m.createdAt);
+      const now = new Date();
+      const daysDiff = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      switch (dateFilter) {
+        case 'today':
+          matchesDate = daysDiff === 0;
+          break;
+        case 'week':
+          matchesDate = daysDiff <= 7;
+          break;
+        case 'month':
+          matchesDate = daysDiff <= 30;
+          break;
+        case 'year':
+          matchesDate = daysDiff <= 365;
+          break;
+      }
+    }
+
+    return matchesSearch && matchesRepairLevel && matchesDate;
+  });
 
   return (
     <div className="space-y-6">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        <div className="relative flex-1 max-w-sm w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Поиск по названию, категории или производителю..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
-          />
+      <div className="flex flex-col gap-3">
+        {/* Поиск, фильтры и кнопка добавления в одной линии */}
+        <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
+          {/* Левая часть: поиск и фильтры */}
+          <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full">
+            {/* Поиск */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Поиск..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+              />
+            </div>
+
+            {/* Фильтр по уровню */}
+            <div className="w-full sm:w-40">
+              <AdminSelect
+                value={repairLevelFilter}
+                onChange={setRepairLevelFilter}
+                placeholder="Уровень"
+                options={[
+                  { value: 'all', label: 'Все уровни' },
+                  { value: 'econom', label: 'Эконом' },
+                  { value: 'standard', label: 'Стандарт' },
+                  { value: 'premium', label: 'Премиум' },
+                ]}
+              />
+            </div>
+
+            {/* Фильтр по дате */}
+            <div className="w-full sm:w-44">
+              <AdminSelect
+                value={dateFilter}
+                onChange={setDateFilter}
+                placeholder="Период"
+                options={[
+                  { value: 'all', label: 'За всё время' },
+                  { value: 'today', label: 'Сегодня' },
+                  { value: 'week', label: 'За неделю' },
+                  { value: 'month', label: 'За месяц' },
+                  { value: 'year', label: 'За год' },
+                ]}
+              />
+            </div>
+
+            {/* Сброс фильтров */}
+            {(repairLevelFilter !== 'all' || dateFilter !== 'all' || search) && (
+              <button
+                onClick={() => {
+                  setRepairLevelFilter('all');
+                  setDateFilter('all');
+                  setSearch('');
+                }}
+                className="px-3 py-2.5 text-xs text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Сбросить
+              </button>
+            )}
+          </div>
+
+          {/* Правая часть: кнопка добавления */}
+          <button
+            onClick={handleAdd}
+            className="flex items-center justify-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-medium hover:shadow-lg hover:shadow-amber-500/20 transition-all whitespace-nowrap w-full lg:w-auto"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Добавить материал</span>
+          </button>
         </div>
-        <button
-          onClick={handleAdd}
-          className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-medium hover:shadow-lg hover:shadow-amber-500/20 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Добавить материал</span>
-        </button>
       </div>
 
       {/* Table */}
