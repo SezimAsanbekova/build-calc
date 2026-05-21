@@ -54,6 +54,16 @@ export async function middleware(request: NextRequest) {
   const isAdmin = role === 'admin';
   const isUser = role === 'user' || (isNextAuthValid && !isAdmin);
 
+  // ── Редирект авторизованных пользователей с главной страницы ─────────────
+  if (pathname === '/') {
+    if (isAuthenticated) {
+      if (isAdmin) {
+        return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+      }
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+  }
+
   // ── Защита страниц пользователя ──────────────────────────────────────────
   if (userOnlyRoutes.some((r) => pathname.startsWith(r))) {
     if (!isAuthenticated) {
@@ -102,6 +112,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/',
     '/dashboard/:path*',
     '/profile/:path*',
     '/calculations/:path*',

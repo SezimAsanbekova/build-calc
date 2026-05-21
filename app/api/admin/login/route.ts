@@ -81,30 +81,48 @@ export async function POST(request: NextRequest) {
       data: { userId: user.id, code, expiresAt },
     });
 
-    // Отправляем код через Telegram Bot API
+    // Отправляем код через Telegram Bot API с таймаутом 5 секунд
     const telegramUrl = `https://api.telegram.org/bot${botTokenSetting.value}/sendMessage`;
     const message =
       `🔐 *Код входа в BuildCalc AI Admin*\n\n` +
       `Ваш код: *${code}*\n\n` +
       `Действителен 10 минут. Никому не сообщайте этот код.`;
 
-    const tgResponse = await fetch(telegramUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: telegramIdSetting.value,
-        text: message,
-        parse_mode: 'Markdown',
-      }),
-    });
+    const controller = new AbortController();
+    const tgTimeout = setTimeout(() => controller.abort(), 5000);
 
-    if (!tgResponse.ok) {
-      const tgError = await tgResponse.json();
-      console.error('Telegram API error:', tgError);
-      return NextResponse.json(
-        { error: 'Ошибка отправки кода через Telegram. Проверьте настройки бота.' },
-        { status: 500 }
-      );
+    try {
+      const tgResponse = await fetch(telegramUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramIdSetting.value,
+          text: message,
+          parse_mode: 'Markdown',
+        }),
+        signal: controller.signal,
+      });
+
+      if (!tgResponse.ok) {
+        const tgError = await tgResponse.json();
+        console.error('Telegram API error:', tgError);
+        return NextResponse.json(
+          { error: 'Ошибка отправки кода через Telegram. Проверьте настройки бота.' },
+          { status: 500 }
+        );
+      }
+    } catch (tgErr) {
+      console.error('Telegram недоступен:', tgErr);
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`\n⚠️  [DEV] Telegram недоступен. Код для ${user.email}: ${code}\n`);
+      } else {
+        return NextResponse.json(
+          { error: 'Не удалось отправить код. Telegram недоступен.' },
+          { status: 503 }
+        );
+      }
+    } finally {
+      clearTimeout(tgTimeout);
     }
 
     return NextResponse.json(

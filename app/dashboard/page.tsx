@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, 
   Calculator, 
@@ -11,16 +11,30 @@ import {
   Settings,
   TrendingUp,
   Package,
-  Users
+  ChevronRight,
 } from 'lucide-react';
+import Sidebar from '../components/Sidebar';
+
+interface DashboardStats {
+  materialCount: number;
+  calculationCount: number;
+  estimateCount: number;
+}
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/login');
+    }
+    if (status === 'authenticated') {
+      fetch('/api/dashboard/stats')
+        .then((r) => r.json())
+        .then((data) => setStats(data))
+        .catch(() => {});
     }
   }, [status, router]);
 
@@ -39,11 +53,25 @@ export default function DashboardPage() {
     return null;
   }
 
-  const stats = [
-    { label: 'Всего расчетов', value: '0', icon: Calculator, color: 'blue' },
-    { label: 'Сохраненные сметы', value: '0', icon: FileText, color: 'purple' },
-    { label: 'Материалов в базе', value: '1,234', icon: Package, color: 'green' },
-    { label: 'Активных пользователей', value: '567', icon: Users, color: 'orange' },
+  const statCards = [
+    {
+      label: 'Всего расчетов',
+      value: stats ? stats.calculationCount.toLocaleString('ru-RU') : '—',
+      icon: Calculator,
+      color: 'blue',
+    },
+    {
+      label: 'Сохраненные сметы',
+      value: stats ? stats.estimateCount.toLocaleString('ru-RU') : '—',
+      icon: FileText,
+      color: 'purple',
+    },
+    {
+      label: 'Материалов в базе',
+      value: stats ? stats.materialCount.toLocaleString('ru-RU') : '—',
+      icon: Package,
+      color: 'green',
+    },
   ];
 
   const quickActions = [
@@ -54,32 +82,37 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Добро пожаловать, {session.user?.name || 'Пользователь'}!
-              </h1>
-              <p className="text-gray-600 mt-1">
-                Управляйте своими расчетами и сметами
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                <LayoutDashboard className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-violet-50/20">
+      <Sidebar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <header className="bg-white/80 backdrop-blur-sm border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span>Dashboard</span>
+            <ChevronRight size={14} />
+            <span className="text-gray-900 font-medium">Главная</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-violet-600 rounded-full flex items-center justify-center">
+              <LayoutDashboard className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-medium text-gray-700">{session.user?.name || 'Пользователь'}</span>
+          </div>
+        </header>
+
+        <main className="flex-1 px-8 py-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">
+              Добро пожаловать, {session.user?.name || 'Пользователь'}!
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">Управляйте своими расчетами и сметами</p>
+          </div>
+
+          <div className="">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => {
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {statCards.map((stat, index) => {
             const Icon = stat.icon;
             return (
               <div
@@ -139,6 +172,8 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+        </div>
+        </main>
       </div>
     </div>
   );

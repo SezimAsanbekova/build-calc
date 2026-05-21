@@ -60,6 +60,7 @@ function MaterialsContent() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [repairLevelFilter, setRepairLevelFilter] = useState<string>('all');
+  const [surfaceTypeFilter, setSurfaceTypeFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<MaterialFormData> | undefined>(undefined);
@@ -134,6 +135,9 @@ function MaterialsContent() {
     // Фильтр по уровню ремонта
     const matchesRepairLevel = repairLevelFilter === 'all' || m.repairLevel === repairLevelFilter;
 
+    // Фильтр по типу поверхности
+    const matchesSurfaceType = surfaceTypeFilter === 'all' || m.surfaceType === surfaceTypeFilter;
+
     // Фильтр по дате
     let matchesDate = true;
     if (dateFilter !== 'all') {
@@ -157,7 +161,7 @@ function MaterialsContent() {
       }
     }
 
-    return matchesSearch && matchesRepairLevel && matchesDate;
+    return matchesSearch && matchesRepairLevel && matchesSurfaceType && matchesDate;
   });
 
   return (
@@ -195,6 +199,21 @@ function MaterialsContent() {
               />
             </div>
 
+            {/* Фильтр по поверхности */}
+            <div className="w-full sm:w-40">
+              <AdminSelect
+                value={surfaceTypeFilter}
+                onChange={setSurfaceTypeFilter}
+                placeholder="Поверхность"
+                options={[
+                  { value: 'all', label: 'Все поверхности' },
+                  { value: 'wall', label: 'Стена' },
+                  { value: 'floor', label: 'Пол' },
+                  { value: 'ceiling', label: 'Потолок' },
+                ]}
+              />
+            </div>
+
             {/* Фильтр по дате */}
             <div className="w-full sm:w-44">
               <AdminSelect
@@ -212,10 +231,11 @@ function MaterialsContent() {
             </div>
 
             {/* Сброс фильтров */}
-            {(repairLevelFilter !== 'all' || dateFilter !== 'all' || search) && (
+            {(repairLevelFilter !== 'all' || surfaceTypeFilter !== 'all' || dateFilter !== 'all' || search) && (
               <button
                 onClick={() => {
                   setRepairLevelFilter('all');
+                  setSurfaceTypeFilter('all');
                   setDateFilter('all');
                   setSearch('');
                 }}
@@ -277,7 +297,6 @@ function MaterialsContent() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Поверхность</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Цена</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Склад</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Статус</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Действия</th>
                 </tr>
               </thead>
@@ -312,17 +331,6 @@ function MaterialsContent() {
                       {Number(m.price).toLocaleString('ru-RU', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-300 text-right whitespace-nowrap">{m.stockQuantity}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
-                        <span className={`inline-flex items-center space-x-1 text-xs ${m.isActive ? 'text-green-400' : 'text-slate-500'}`}>
-                          <div className={`w-1.5 h-1.5 rounded-full ${m.isActive ? 'bg-green-400' : 'bg-slate-500'}`} />
-                          <span>{m.isActive ? 'Активен' : 'Скрыт'}</span>
-                        </span>
-                        {!m.isAvailable && (
-                          <span className="text-xs text-orange-400">Нет в наличии</span>
-                        )}
-                      </div>
-                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center justify-end space-x-1">
                         <button

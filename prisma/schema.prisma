@@ -171,6 +171,8 @@ model Material {
 
   packageUnit             String   @map("package_unit") @db.VarChar(50)
 
+  wasteFactor             Decimal  @default(1.10) @map("waste_factor") @db.Decimal(5, 3)
+
   stockQuantity           Int      @default(0) @map("stock_quantity")
 
   description             String?  @db.Text
