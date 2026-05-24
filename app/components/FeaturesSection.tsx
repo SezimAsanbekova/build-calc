@@ -1,47 +1,19 @@
+'use client';
+
 import { Calculator, Wallet, CheckCircle, Lightbulb, FileText, History, Target, Home } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
 export default function FeaturesSection() {
+  const { t } = useTranslation('landing');
   const features = [
-    {
-      icon: Calculator,
-      title: 'Автоматический расчет',
-      description: 'Точный расчет количества материалов с учетом коэффициентов запаса и обрезки'
-    },
-    {
-      icon: Wallet,
-      title: 'Учет бюджета',
-      description: 'Подбор материалов в рамках вашего бюджета с предупреждением о превышении'
-    },
-    {
-      icon: CheckCircle,
-      title: 'Проверка совместимости',
-      description: 'Автоматическая проверка технологической совместимости выбранных материалов'
-    },
-    {
-      icon: Lightbulb,
-      title: 'Рекомендации альтернатив',
-      description: 'Умные предложения альтернативных материалов для оптимизации бюджета'
-    },
-    {
-      icon: FileText,
-      title: 'Генерация сметы',
-      description: 'Формирование профессиональной сметы с артикулами и характеристиками'
-    },
-    {
-      icon: History,
-      title: 'История расчетов',
-      description: 'Сохранение и доступ к предыдущим расчетам в любое время'
-    },
-    {
-      icon: Target,
-      title: 'Несколько вариантов',
-      description: 'Получение нескольких вариантов подбора для сравнения и выбора'
-    },
-    {
-      icon: Home,
-      title: 'Типы помещений',
-      description: 'Поддержка различных типов помещений с учетом их специфики'
-    }
+    { icon: Calculator, titleKey: 'features.items.autoCalc.title', descKey: 'features.items.autoCalc.desc' },
+    { icon: Wallet,     titleKey: 'features.items.budget.title',   descKey: 'features.items.budget.desc' },
+    { icon: CheckCircle,titleKey: 'features.items.compat.title',   descKey: 'features.items.compat.desc' },
+    { icon: Lightbulb,  titleKey: 'features.items.alts.title',     descKey: 'features.items.alts.desc' },
+    { icon: FileText,   titleKey: 'features.items.estimate.title', descKey: 'features.items.estimate.desc' },
+    { icon: History,    titleKey: 'features.items.history.title',  descKey: 'features.items.history.desc' },
+    { icon: Target,     titleKey: 'features.items.variants.title', descKey: 'features.items.variants.desc' },
+    { icon: Home,       titleKey: 'features.items.rooms.title',    descKey: 'features.items.rooms.desc' },
   ];
 
   return (
@@ -49,10 +21,10 @@ export default function FeaturesSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-            Возможности системы
+            {t('features.title')}
           </h2>
           <p className="text-base text-gray-600 max-w-2xl mx-auto">
-            Все инструменты для точного расчета и подбора материалов в одном месте
+            {t('features.subtitle')}
           </p>
         </div>
 
@@ -68,10 +40,10 @@ export default function FeaturesSection() {
                   <Icon className="w-5 h-5 text-white" />
                 </div>
                 <h3 className="text-base font-semibold text-gray-900 mb-2">
-                  {feature.title}
+                  {t(feature.titleKey)}
                 </h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  {feature.description}
+                  {t(feature.descKey)}
                 </p>
               </div>
             );

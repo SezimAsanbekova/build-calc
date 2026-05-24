@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 import { BarChart3, Building2, Target, Zap } from 'lucide-react';
 
 export default function StatisticsSection() {
+  const { t } = useTranslation('landing');
   const [isVisible, setIsVisible] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -25,30 +27,10 @@ export default function StatisticsSection() {
   }, []);
 
   const stats = [
-    {
-      value: 5000,
-      suffix: '+',
-      label: 'Выполненных расчетов',
-      icon: BarChart3
-    },
-    {
-      value: 1000,
-      suffix: '+',
-      label: 'Материалов в каталоге',
-      icon: Building2
-    },
-    {
-      value: 95,
-      suffix: '%',
-      label: 'Точность расчетов',
-      icon: Target
-    },
-    {
-      value: 70,
-      suffix: '%',
-      label: 'Экономия времени',
-      icon: Zap
-    }
+    { value: 5000, suffix: '+', labelKey: 'statistics.calcs',           icon: BarChart3 },
+    { value: 1000, suffix: '+', labelKey: 'statistics.catalogMaterials', icon: Building2 },
+    { value: 95,   suffix: '%', labelKey: 'statistics.accuracy',         icon: Target },
+    { value: 70,   suffix: '%', labelKey: 'statistics.timeSaving',       icon: Zap },
   ];
 
   return (
@@ -64,10 +46,10 @@ export default function StatisticsSection() {
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
-            Цифры говорят сами за себя
+            {t('statistics.title')}
           </h2>
           <p className="text-base text-white/90 max-w-2xl mx-auto">
-            Тысячи пользователей уже оценили преимущества автоматизированного подбора материалов
+            {t('statistics.subtitle')}
           </p>
         </div>
 
@@ -91,7 +73,7 @@ export default function StatisticsSection() {
                     )}
                   </div>
                   <div className="text-white/90 text-sm">
-                    {stat.label}
+                    {t(stat.labelKey)}
                   </div>
                 </div>
               </div>

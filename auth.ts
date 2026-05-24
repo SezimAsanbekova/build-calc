@@ -86,7 +86,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger, session }) {
+      // Обновление через update() на клиенте
+      if (trigger === 'update' && session?.image !== undefined) {
+        token.picture = session.image;
+      }
+
       // При первом входе подставляем данные из user
       if (user) {
         token.role = (user as { role?: string }).role || 'user';

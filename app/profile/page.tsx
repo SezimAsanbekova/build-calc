@@ -15,7 +15,10 @@ import {
   Trash2,
   Loader,
   AlertCircle,
+  Globe,
 } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
+import { useLang } from '@/app/i18n/LanguageContext';
 
 interface UserData {
   id: string;
@@ -27,8 +30,11 @@ interface UserData {
 }
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
+  const { t } = useTranslation('profile');
+  const { t: tc } = useTranslation('common');
+  const { lang, switchLang } = useLang();
   const [isEditing, setIsEditing] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -121,12 +127,13 @@ export default function ProfilePage() {
       const res = await fetch('/api/auth/avatar', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) {
-        setAvatarError(data.error || 'Ошибка загрузки');
+        setAvatarError(data.error || t('avatar.uploadError'));
         return;
       }
       setUserData((prev) => (prev ? { ...prev, avatar: data.avatarUrl } : data.user));
+      await update({ image: data.avatarUrl });
     } catch {
-      setAvatarError('Произошла ошибка. Попробуйте снова.');
+      setAvatarError(t('genericError'));
     } finally {
       setUploadingAvatar(false);
     }
@@ -139,12 +146,13 @@ export default function ProfilePage() {
       const res = await fetch('/api/auth/avatar', { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) {
-        setAvatarError(data.error || 'Ошибка удаления');
+        setAvatarError(data.error || t('avatar.deleteError'));
         return;
       }
       setUserData((prev) => (prev ? { ...prev, avatar: null } : data.user));
+      await update({ image: null });
     } catch {
-      setAvatarError('Произошла ошибка. Попробуйте снова.');
+      setAvatarError(t('genericError'));
     } finally {
       setUploadingAvatar(false);
     }
@@ -155,7 +163,7 @@ export default function ProfilePage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Загрузка...</p>
+          <p className="text-gray-600">{tc('buttons.loading')}</p>
         </div>
       </div>
     );
@@ -187,14 +195,14 @@ export default function ProfilePage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Профиль</h1>
-              <p className="text-gray-600 mt-1">Управление личными данными</p>
+              <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+              <p className="text-gray-600 mt-1">{t('subtitle')}</p>
             </div>
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/dashboard')}
               className="text-gray-600 hover:text-gray-900 transition-colors"
             >
-              ← На главную
+              {tc('buttons.home')}
             </button>
           </div>
         </div>
@@ -260,7 +268,7 @@ export default function ProfilePage() {
                         className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
                       >
                         <Camera className="w-4 h-4" />
-                        <span>{hasAvatar ? 'Загрузить новое' : 'Загрузить фото'}</span>
+                        <span>{hasAvatar ? t('avatar.uploadNew') : t('avatar.upload')}</span>
                       </button>
                       {hasAvatar && (
                         <button
@@ -271,7 +279,7 @@ export default function ProfilePage() {
                           className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
-                          <span>Удалить фото</span>
+                          <span>{t('avatar.delete')}</span>
                         </button>
                       )}
                     </div>
@@ -298,7 +306,7 @@ export default function ProfilePage() {
                   className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-300 flex items-center space-x-2"
                 >
                   <Edit className="w-4 h-4" />
-                  <span>Редактировать</span>
+                  <span>{tc('buttons.edit')}</span>
                 </button>
               ) : (
                 <div className="flex space-x-2">
@@ -307,7 +315,7 @@ export default function ProfilePage() {
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
                   >
                     <Save className="w-4 h-4" />
-                    <span>Сохранить</span>
+                    <span>{tc('buttons.save')}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -317,7 +325,7 @@ export default function ProfilePage() {
                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center space-x-2"
                   >
                     <X className="w-4 h-4" />
-                    <span>Отмена</span>
+                    <span>{tc('buttons.cancel')}</span>
                   </button>
                 </div>
               )}
@@ -335,7 +343,7 @@ export default function ProfilePage() {
             <div className="space-y-6">
               {/* Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Имя</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('name')}</label>
                 {isEditing ? (
                   <input
                     type="text"
@@ -347,7 +355,7 @@ export default function ProfilePage() {
                 ) : (
                   <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-lg">
                     <User className="w-5 h-5 text-blue-600" />
-                    <span className="text-gray-900">{user.name || 'Не указано'}</span>
+                    <span className="text-gray-900">{user.name || t('notSpecified')}</span>
                   </div>
                 )}
               </div>
@@ -361,20 +369,36 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {/* Language */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('language')}</label>
+                <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-lg">
+                  <Globe className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                  <select
+                    value={lang}
+                    onChange={(e) => switchLang(e.target.value as 'ru' | 'kg')}
+                    className="flex-1 bg-transparent text-gray-900 text-sm focus:outline-none cursor-pointer"
+                  >
+                    <option value="ru">🇷🇺 Русский</option>
+                    <option value="kg">🇰🇬 Кыргызча</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Role */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Роль</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('role')}</label>
                 <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-lg">
                   <Shield className="w-5 h-5 text-purple-600" />
                   <span className="text-gray-900">
-                    {user.role === 'admin' ? 'Администратор' : 'Пользователь'}
+                    {user.role === 'admin' ? t('roleAdmin') : t('roleUser')}
                   </span>
                 </div>
               </div>
 
               {/* Registration Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Дата регистрации</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('registeredAt')}</label>
                 <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-lg">
                   <Calendar className="w-5 h-5 text-purple-600" />
                   <span className="text-gray-900">{formatDate(userData?.createdAt)}</span>
@@ -386,19 +410,19 @@ export default function ProfilePage() {
 
         {/* Statistics Card */}
         <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Статистика</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-6">{t('stats.title')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center p-6 bg-blue-50 rounded-xl">
               <p className="text-3xl font-bold text-blue-600 mb-2">0</p>
-              <p className="text-sm text-gray-600">Расчетов</p>
+              <p className="text-sm text-gray-600">{t('stats.calculations')}</p>
             </div>
             <div className="text-center p-6 bg-purple-50 rounded-xl">
               <p className="text-3xl font-bold text-purple-600 mb-2">0</p>
-              <p className="text-sm text-gray-600">Сохраненных смет</p>
+              <p className="text-sm text-gray-600">{t('stats.savedEstimates')}</p>
             </div>
             <div className="text-center p-6 bg-green-50 rounded-xl">
               <p className="text-3xl font-bold text-green-600 mb-2">0</p>
-              <p className="text-sm text-gray-600">Сравнений</p>
+              <p className="text-sm text-gray-600">{t('stats.comparisons')}</p>
             </div>
           </div>
         </div>

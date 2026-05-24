@@ -293,6 +293,8 @@ model Calculation {
 
   userId              String?  @map("user_id") @db.Uuid
 
+  projectName         String?  @map("project_name") @db.VarChar(255)
+
   roomType            String   @map("room_type") @db.VarChar(100)
 
   surfaceType         SurfaceType @map("surface_type")

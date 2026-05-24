@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { RepairLevel, SurfaceType } from '@prisma/client';
+import { generateRecommendations } from '@/lib/recommendations';
 
 const SURFACE_MAP: Record<string, SurfaceType> = {
   walls: 'wall',
@@ -157,6 +158,69 @@ async function calcSurface(
   return { surface: dbSurface, label: SURFACE_LABEL[dbSurface], surfaceArea, items, subtotal, warnings, recommendations };
 }
 
+export async function GET() {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 });
+    }
+
+    const calculations = await prisma.calculation.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        variants: {
+          include: {
+            items: { select: { id: true } },
+          },
+        },
+      },
+    });
+
+    const LEVEL_MAP: Record<string, string> = { econom: 'economy', standard: 'standard', premium: 'premium' };
+    const SURF_MAP_REV: Record<string, string> = { wall: 'walls', floor: 'floor', ceiling: 'ceiling' };
+
+    const result = calculations.map((c) => {
+      const isFullRoom = c.variants.length > 1;
+      const totalPrice = c.variants.reduce((s, v) => s + parseFloat(v.totalPrice.toString()), 0);
+      const budget = c.budget ? parseFloat(c.budget.toString()) : 0;
+      const fitsBudget = totalPrice <= budget;
+      const materialCount = c.variants.reduce((s, v) => s + v.items.length, 0);
+
+      const firstName = c.variants[0]?.title ?? '';
+      const dbProjectName = (c as unknown as { projectName?: string | null }).projectName;
+      const projectName = (dbProjectName
+        ?? (isFullRoom ? firstName.split(' — ').slice(0, -1).join(' — ') : firstName))
+        || `Расчёт от ${new Date(c.createdAt).toLocaleDateString('ru-RU')}`;
+
+      return {
+        id: c.id,
+        projectName,
+        roomType: c.roomType,
+        surfaceType: isFullRoom ? 'full_room' : SURF_MAP_REV[c.surfaceType] ?? c.surfaceType,
+        repairLevel: LEVEL_MAP[c.repairLevel] ?? c.repairLevel,
+        length: c.length,
+        width: c.width,
+        height: c.height,
+        area: c.area,
+        budget,
+        createdAt: c.createdAt,
+        totalPrice: Math.round(totalPrice),
+        fitsBudget,
+        isFullRoom,
+        surfaceCount: c.variants.length,
+        materialCount,
+        remaining: Math.round(budget - totalPrice),
+      };
+    });
+
+    return NextResponse.json({ calculations: result });
+  } catch (error) {
+    console.error('Calculations list error:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -300,6 +364,7 @@ export async function POST(request: NextRequest) {
     const calculation = await prisma.calculation.create({
       data: {
         userId: session.user.id,
+        ...(projectName ? { projectName } : {}),
         roomType,
         surfaceType: dbSurfaceFirst,
         length: l,
@@ -335,6 +400,22 @@ export async function POST(request: NextRequest) {
       ({ warnings: _w, recommendations: _r, ...g }) => g,
     );
 
+    const allItems = rawGroups.flatMap((g) => g.items);
+    const uniqueCategories = [...new Set(allItems.map((i) => i.material.category.name))];
+    const uniqueNames = [...new Set(allItems.map((i) => i.material.name))];
+
+    const smartRecommendations = generateRecommendations({
+      roomType,
+      surfaceType,
+      repairLevel,
+      budget: budgetVal,
+      totalPrice,
+      area,
+      categories: uniqueCategories,
+      materialNames: uniqueNames,
+      budgetOptimizations,
+    });
+
     return NextResponse.json({
       calculationId: calculation.id,
       projectName: projectName || `Расчет ${new Date().toLocaleDateString('ru-RU')}`,
@@ -355,6 +436,7 @@ export async function POST(request: NextRequest) {
       recommendations: allRecommendations,
       budgetAnalysis,
       budgetOptimizations,
+      smartRecommendations,
     });
   } catch (error) {
     console.error('Calculation error:', error);

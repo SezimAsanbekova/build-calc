@@ -1,6 +1,10 @@
+'use client';
+
 import { Mail, MessageCircle, Send } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
 export default function Footer() {
+  const { t } = useTranslation('common');
   return (
     <footer className="bg-gray-900 text-white py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -14,7 +18,7 @@ export default function Footer() {
               <span className="text-lg font-bold">BuildCalc AI</span>
             </div>
             <p className="text-sm text-gray-400 mb-3">
-              Автоматизированный подбор материалов для ремонта помещений
+              {t('footer.description')}
             </p>
             <div className="flex space-x-3">
               <a href="#" className="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors duration-300">
@@ -31,26 +35,26 @@ export default function Footer() {
 
           {/* Product */}
           <div>
-            <h3 className="text-sm font-semibold mb-3">Продукт</h3>
+            <h3 className="text-sm font-semibold mb-3">{t('footer.product')}</h3>
             <ul className="space-y-2">
               <li>
                 <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Возможности
+                  {t('footer.features')}
                 </a>
               </li>
               <li>
                 <a href="#how-it-works" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Как работает
+                  {t('footer.howItWorks')}
                 </a>
               </li>
               <li>
                 <a href="#materials" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Каталог материалов
+                  {t('footer.catalog')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Тарифы
+                  {t('footer.pricing')}
                 </a>
               </li>
             </ul>
@@ -58,26 +62,26 @@ export default function Footer() {
 
           {/* Company */}
           <div>
-            <h3 className="text-sm font-semibold mb-3">Компания</h3>
+            <h3 className="text-sm font-semibold mb-3">{t('footer.company')}</h3>
             <ul className="space-y-2">
               <li>
                 <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  О нас
+                  {t('footer.about')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Блог
+                  {t('footer.blog')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Карьера
+                  {t('footer.careers')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Контакты
+                  {t('footer.contacts')}
                 </a>
               </li>
             </ul>
@@ -85,26 +89,26 @@ export default function Footer() {
 
           {/* Support */}
           <div>
-            <h3 className="text-sm font-semibold mb-3">Поддержка</h3>
+            <h3 className="text-sm font-semibold mb-3">{t('footer.support')}</h3>
             <ul className="space-y-2">
               <li>
                 <a href="#faq" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  FAQ
+                  {t('footer.faq')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Документация
+                  {t('footer.docs')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Помощь
+                  {t('footer.help')}
                 </a>
               </li>
               <li>
                 <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors duration-300">
-                  Обратная связь
+                  {t('footer.feedback')}
                 </a>
               </li>
             </ul>
@@ -115,17 +119,17 @@ export default function Footer() {
         <div className="pt-6 border-t border-gray-800">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-3 md:space-y-0">
             <div className="text-gray-400 text-xs">
-              © 2026 BuildCalc AI. Все права защищены.
+              {t('footer.copyright')}
             </div>
             <div className="flex space-x-5 text-xs">
               <a href="#" className="text-gray-400 hover:text-white transition-colors duration-300">
-                Политика конфиденциальности
+                {t('footer.privacy')}
               </a>
               <a href="#" className="text-gray-400 hover:text-white transition-colors duration-300">
-                Условия использования
+                {t('footer.terms')}
               </a>
               <a href="#" className="text-gray-400 hover:text-white transition-colors duration-300">
-                Cookies
+                {t('footer.cookies')}
               </a>
             </div>
           </div>

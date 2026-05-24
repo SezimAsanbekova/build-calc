@@ -1,37 +1,16 @@
+'use client';
+
 import { Ruler, Star, CreditCard, Bot, ClipboardCheck } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
 export default function HowItWorksSection() {
+  const { t } = useTranslation('landing');
   const steps = [
-    {
-      number: '01',
-      title: 'Ввод параметров помещения',
-      description: 'Укажите длину, ширину, высоту помещения или просто площадь',
-      icon: Ruler
-    },
-    {
-      number: '02',
-      title: 'Выбор уровня ремонта',
-      description: 'Выберите уровень: эконом, стандарт или премиум',
-      icon: Star
-    },
-    {
-      number: '03',
-      title: 'Указание бюджета',
-      description: 'Установите желаемый бюджет для подбора оптимальных материалов',
-      icon: CreditCard
-    },
-    {
-      number: '04',
-      title: 'Автоматический подбор',
-      description: 'Система рассчитает количество и подберет совместимые материалы',
-      icon: Bot
-    },
-    {
-      number: '05',
-      title: 'Получение сметы',
-      description: 'Получите детальную смету с возможностью экспорта и сохранения',
-      icon: ClipboardCheck
-    }
+    { number: '01', stepKey: '1', icon: Ruler },
+    { number: '02', stepKey: '2', icon: Star },
+    { number: '03', stepKey: '3', icon: CreditCard },
+    { number: '04', stepKey: '4', icon: Bot },
+    { number: '05', stepKey: '5', icon: ClipboardCheck },
   ];
 
   return (
@@ -39,10 +18,10 @@ export default function HowItWorksSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-            Как это работает
+            {t('howItWorks.title')}
           </h2>
           <p className="text-base text-gray-600 max-w-2xl mx-auto">
-            Простой процесс от параметров до готовой сметы за 5 шагов
+            {t('howItWorks.subtitle')}
           </p>
         </div>
 
@@ -67,13 +46,13 @@ export default function HowItWorksSection() {
                         <Icon className="w-6 h-6 text-white" />
                       </div>
                       <div className="text-xs font-semibold text-blue-600 mb-1.5">
-                        Шаг {step.number}
+                        {t('howItWorks.step')} {step.number}
                       </div>
                       <h3 className="text-lg font-bold text-gray-900 mb-2">
-                        {step.title}
+                        {t(`howItWorks.steps.${step.stepKey}.title`)}
                       </h3>
                       <p className="text-sm text-gray-600">
-                        {step.description}
+                        {t(`howItWorks.steps.${step.stepKey}.desc`)}
                       </p>
                     </div>
                   </div>

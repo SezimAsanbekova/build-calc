@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { signIn } from 'next-auth/react';
 import { AlertCircle, CheckCircle, Loader, RefreshCw } from 'lucide-react';
 
 function VerifyEmailContent() {
@@ -107,9 +108,18 @@ function VerifyEmailContent() {
       }
 
       setSuccess(true);
+      const pwd = sessionStorage.getItem('_reg_pwd');
+      if (pwd && email) {
+        sessionStorage.removeItem('_reg_pwd');
+        await signIn('credentials', {
+          redirect: false,
+          email: decodeURIComponent(email),
+          password: pwd,
+        });
+      }
       setTimeout(() => {
         if (mounted) {
-          router.push('/profile');
+          router.push('/dashboard');
           router.refresh();
         }
       }, 1500);

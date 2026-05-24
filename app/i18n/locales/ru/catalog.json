@@ -1,0 +1,45 @@
+{
+  "title": "Каталог материалов",
+  "search": "Поиск материалов...",
+  "filters": {
+    "title": "Фильтры",
+    "category": "Категория",
+    "manufacturer": "Производитель",
+    "repairLevel": "Уровень ремонта",
+    "surfaceType": "Тип поверхности",
+    "price": "Цена",
+    "allCategories": "Все категории",
+    "allManufacturers": "Все производители",
+    "allLevels": "Все уровни",
+    "allSurfaces": "Все типы"
+  },
+  "repairLevel": {
+    "economy": "Эконом",
+    "standard": "Стандарт",
+    "premium": "Премиум"
+  },
+  "surfaceType": {
+    "floor": "Пол",
+    "walls": "Стены",
+    "ceiling": "Потолок"
+  },
+  "stock": {
+    "inStock": "В наличии: {{count}} упаковок",
+    "outOfStock": "Нет в наличии"
+  },
+  "noResults": "Нет результатов",
+  "noResultsHint": "Попробуйте изменить параметры фильтров",
+  "reset": "Сбросить",
+  "showing": "Показано {{from}}–{{to}} из {{total}}",
+  "details": {
+    "price": "Цена",
+    "consumption": "Расход",
+    "packageQty": "Упаковка",
+    "available": "В наличии",
+    "category": "Категория",
+    "manufacturer": "Производитель",
+    "description": "Описание",
+    "close": "Закрыть"
+  },
+  "perUnit": "за {{unit}}"
+}

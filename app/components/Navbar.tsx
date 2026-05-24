@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { User, LogOut, LayoutDashboard } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
+import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { data: session, status } = useSession();
+  const { t } = useTranslation('common');
 
   useEffect(() => {
     const handleScroll = () => {
@@ -47,20 +50,21 @@ export default function Navbar() {
 
           <div className="hidden md:flex items-center space-x-8">
             <a href="#features" className="text-gray-600 hover:text-gray-900 transition-colors">
-              Возможности
+              {t('nav.features')}
             </a>
             <a href="#how-it-works" className="text-gray-600 hover:text-gray-900 transition-colors">
-              Как работает
+              {t('nav.howItWorks')}
             </a>
             <a href="#materials" className="text-gray-600 hover:text-gray-900 transition-colors">
-              Материалы
+              {t('nav.materials')}
             </a>
             <a href="#faq" className="text-gray-600 hover:text-gray-900 transition-colors">
-              FAQ
+              {t('nav.faq')}
             </a>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            <LanguageSwitcher />
             {status === 'loading' ? (
               <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"></div>
             ) : session ? (
@@ -94,7 +98,7 @@ export default function Navbar() {
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-100 py-2 z-20">
                       <div className="px-4 py-3 border-b border-gray-100">
                         <p className="text-sm font-medium text-gray-900">
-                          {session.user?.name || 'Пользователь'}
+                          {session.user?.name || t('nav.user')}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
                           {session.user?.email}
@@ -106,7 +110,7 @@ export default function Navbar() {
                         onClick={() => setShowUserMenu(false)}
                       >
                         <User className="w-4 h-4" />
-                        <span>Профиль</span>
+                        <span>{t('nav.profile')}</span>
                       </Link>
                       <Link
                         href="/dashboard"
@@ -114,14 +118,14 @@ export default function Navbar() {
                         onClick={() => setShowUserMenu(false)}
                       >
                         <LayoutDashboard className="w-4 h-4" />
-                        <span>Панель управления</span>
+                        <span>{t('nav.dashboard')}</span>
                       </Link>
                       <button
                         onClick={handleLogout}
                         className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>Выйти</span>
+                        <span>{t('nav.logout')}</span>
                       </button>
                     </div>
                   </>
@@ -133,13 +137,13 @@ export default function Navbar() {
                   href="/login"
                   className="text-gray-600 hover:text-gray-900 transition-colors"
                 >
-                  Войти
+                  {t('nav.login')}
                 </Link>
                 <Link
                   href="/register"
                   className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-300 hover:scale-105"
                 >
-                  Начать расчет
+                  {t('nav.startCalc')}
                 </Link>
               </>
             )}

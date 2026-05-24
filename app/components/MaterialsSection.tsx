@@ -1,49 +1,17 @@
+'use client';
+
 import { Grid3x3, Paintbrush, Layers, Wallpaper, Droplet, Brush } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
 export default function MaterialsSection() {
+  const { t } = useTranslation('landing');
   const materials = [
-    {
-      name: 'Керамическая плитка',
-      category: 'Напольные покрытия',
-      price: 'от 450 с/м²',
-      icon: Grid3x3,
-      popular: true
-    },
-    {
-      name: 'Интерьерная краска',
-      category: 'Отделка стен',
-      price: 'от 320 с/л',
-      icon: Paintbrush,
-      popular: true
-    },
-    {
-      name: 'Ламинат',
-      category: 'Напольные покрытия',
-      price: 'от 580 с/м²',
-      icon: Layers,
-      popular: true
-    },
-    {
-      name: 'Виниловые обои',
-      category: 'Отделка стен',
-      price: 'от 890 с/рулон',
-      icon: Wallpaper,
-      popular: false
-    },
-    {
-      name: 'Плиточный клей',
-      category: 'Расходные материалы',
-      price: 'от 280 с/25кг',
-      icon: Droplet,
-      popular: false
-    },
-    {
-      name: 'Шпаклевка',
-      category: 'Подготовка поверхности',
-      price: 'от 350 с/20кг',
-      icon: Brush,
-      popular: false
-    }
+    { icon: Grid3x3,   key: 'tile',     price: 'от 450 с/м²',  popular: true  },
+    { icon: Paintbrush, key: 'paint',    price: 'от 320 с/л',   popular: true  },
+    { icon: Layers,     key: 'laminate', price: 'от 580 с/м²',  popular: true  },
+    { icon: Wallpaper,  key: 'wallpaper',price: 'от 890 с/рул', popular: false },
+    { icon: Droplet,    key: 'adhesive', price: 'от 280 с/25кг',popular: false },
+    { icon: Brush,      key: 'putty',    price: 'от 350 с/20кг',popular: false },
   ];
 
   return (
@@ -51,10 +19,10 @@ export default function MaterialsSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-            Каталог материалов
+            {t('materials.title')}
           </h2>
           <p className="text-base text-gray-600 max-w-2xl mx-auto">
-            Более 1000 строительных и отделочных материалов от проверенных производителей
+            {t('materials.subtitle')}
           </p>
         </div>
 
@@ -69,7 +37,7 @@ export default function MaterialsSection() {
                 {material.popular && (
                   <div className="absolute top-3 right-3">
                     <span className="px-2 py-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs font-semibold rounded-full">
-                      Популярно
+                      {t('materials.popular')}
                     </span>
                   </div>
                 )}
@@ -80,10 +48,10 @@ export default function MaterialsSection() {
 
                 <div className="space-y-1.5">
                   <div className="text-xs text-blue-600 font-semibold uppercase tracking-wide">
-                    {material.category}
+                    {t(`materials.items.${material.key}.category`)}
                   </div>
                   <h3 className="text-base font-bold text-gray-900">
-                    {material.name}
+                    {t(`materials.items.${material.key}.name`)}
                   </h3>
                   <div className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                     {material.price}
@@ -91,7 +59,7 @@ export default function MaterialsSection() {
                 </div>
 
                 <button className="mt-3 w-full py-2 bg-gray-900 text-white text-sm rounded-lg font-semibold hover:bg-blue-600 transition-colors duration-300">
-                  Подробнее
+                  {t('materials.details')}
                 </button>
               </div>
             );
@@ -100,7 +68,7 @@ export default function MaterialsSection() {
 
         <div className="text-center">
           <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-2xl transition-all duration-300 hover:scale-105">
-            Смотреть весь каталог
+            {t('materials.viewAll')}
           </button>
         </div>
       </div>

@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { Mail, Lock, User, CircleDot, AlertCircle, CheckCircle } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useTranslation('auth');
+  const { t: tc } = useTranslation('common');
   const [mounted, setMounted] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -28,12 +31,12 @@ export default function RegisterPage() {
 
     // Валидация
     if (formData.password !== formData.confirmPassword) {
-      setError('Пароли не совпадают');
+      setError(t('register.passwordMismatch'));
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Пароль должен содержать минимум 6 символов');
+      setError(t('register.passwordTooShort'));
       return;
     }
 
@@ -53,16 +56,17 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Ошибка при регистрации');
+        setError(data.error || t('register.error'));
         setLoading(false);
         return;
       }
 
       if (mounted) {
+        sessionStorage.setItem('_reg_pwd', formData.password);
         router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
       }
     } catch (err) {
-      setError('Произошла ошибка. Попробуйте снова.');
+      setError(t('register.genericError'));
       setLoading(false);
     }
   };
@@ -70,9 +74,9 @@ export default function RegisterPage() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      await signIn('google', { callbackUrl: '/profile' });
+      await signIn('google', { callbackUrl: '/dashboard' });
     } catch (err) {
-      setError('Ошибка при регистрации через Google');
+      setError(t('register.error'));
       setLoading(false);
     }
   };
@@ -92,8 +96,8 @@ export default function RegisterPage() {
               BuildCalc AI
             </span>
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Регистрация</h1>
-          <p className="text-gray-600">Создайте аккаунт для начала работы</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('register.title')}</h1>
+          <p className="text-gray-600">{t('register.title')}</p>
         </div>
 
         {/* Form Card */}
@@ -109,7 +113,7 @@ export default function RegisterPage() {
             {/* Name */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                Имя (необязательно)
+                {t('register.name')}
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -146,7 +150,7 @@ export default function RegisterPage() {
             {/* Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Пароль
+                {t('register.password')}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -165,12 +169,12 @@ export default function RegisterPage() {
                   {passwordStrength ? (
                     <>
                       <CheckCircle className="w-4 h-4 text-green-600" />
-                      <span className="text-green-600">Надежный пароль</span>
+                      <span className="text-green-600">{t('register.strongPassword')}</span>
                     </>
                   ) : (
                     <>
                       <AlertCircle className="w-4 h-4 text-orange-600" />
-                      <span className="text-orange-600">Минимум 6 символов</span>
+                      <span className="text-orange-600">{t('register.passwordTooShort')}</span>
                     </>
                   )}
                 </div>
@@ -180,7 +184,7 @@ export default function RegisterPage() {
             {/* Confirm Password */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Подтвердите пароль
+                {t('register.confirmPassword')}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -202,7 +206,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:shadow-lg transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              {loading ? 'Регистрация...' : 'Зарегистрироваться'}
+              {loading ? tc('buttons.loading') : t('register.submit')}
             </button>
           </form>
 
@@ -224,14 +228,14 @@ export default function RegisterPage() {
             className="w-full py-3 border-2 border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-300 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CircleDot className="w-5 h-5" />
-            <span>Регистрация через Google</span>
+            <span>{t('register.google')}</span>
           </button>
 
           {/* Login Link */}
           <p className="mt-6 text-center text-sm text-gray-600">
-            Уже есть аккаунт?{' '}
+            {t('register.hasAccount')}{' '}
             <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-              Войти
+              {t('register.login')}
             </Link>
           </p>
         </div>
@@ -239,7 +243,7 @@ export default function RegisterPage() {
         {/* Back to Home */}
         <div className="mt-6 text-center">
           <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
-            ← Вернуться на главную
+            {tc('buttons.home')}
           </Link>
         </div>
       </div>

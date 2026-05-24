@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 import {
   LayoutDashboard,
   Calculator,
@@ -13,17 +14,18 @@ import {
   Zap,
 } from 'lucide-react';
 
-const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Новый расчет', href: '/calculations/new', icon: Calculator },
-  { label: 'Мои расчеты', href: '/calculations', icon: ClipboardList },
-  { label: 'Каталог', href: '/catalog', icon: BookOpen },
-  { label: 'Профиль', href: '/profile', icon: User },
+const NAV_KEYS = [
+  { key: 'sidebar.dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { key: 'sidebar.newCalc', href: '/calculations/new', icon: Calculator },
+  { key: 'sidebar.myCalcs', href: '/calculations', icon: ClipboardList },
+  { key: 'sidebar.catalog', href: '/catalog', icon: BookOpen },
+  { key: 'sidebar.profile', href: '/profile', icon: User },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { t } = useTranslation('common');
 
   const userInitials = session?.user?.name
     ? session.user.name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -47,9 +49,9 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-          Меню
+          {t('sidebar.menu')}
         </p>
-        {navItems.map((item) => {
+        {NAV_KEYS.map((item) => {
           const Icon = item.icon;
           const isActive =
             item.href === '/calculations'
@@ -72,7 +74,7 @@ export default function Sidebar() {
                 }`}
                 size={18}
               />
-              {item.label}
+              {t(item.key)}
               {isActive && (
                 <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white/60" />
               )}
@@ -89,7 +91,7 @@ export default function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-900 truncate">
-              {session?.user?.name || 'Пользователь'}
+              {session?.user?.name || t('sidebar.user')}
             </p>
             <p className="text-[11px] text-gray-400 truncate">
               {session?.user?.email || ''}
@@ -101,7 +103,7 @@ export default function Sidebar() {
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-150 group"
         >
           <LogOut size={16} className="flex-shrink-0 group-hover:scale-110 transition-transform" />
-          Выйти
+          {t('sidebar.logout')}
         </button>
       </div>
     </aside>

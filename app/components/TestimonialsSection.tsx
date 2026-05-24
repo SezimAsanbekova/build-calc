@@ -1,49 +1,17 @@
+'use client';
+
 import { User, Palette, HardHat, Laptop, Store, Microscope, Star } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
 export default function TestimonialsSection() {
+  const { t } = useTranslation('landing');
   const testimonials = [
-    {
-      name: 'Алексей Петров',
-      role: 'Частный заказчик',
-      icon: User,
-      text: 'BuildCalc AI сэкономил мне массу времени и денег. Раньше я тратил дни на расчеты и походы по магазинам, теперь все готово за 10 минут!',
-      rating: 5
-    },
-    {
-      name: 'Мария Иванова',
-      role: 'Дизайнер интерьеров',
-      icon: Palette,
-      text: 'Использую систему для всех своих проектов. Клиенты в восторге от точности расчетов и профессиональных смет. Рекомендую!',
-      rating: 5
-    },
-    {
-      name: 'Дмитрий Соколов',
-      role: 'Прораб',
-      icon: HardHat,
-      text: 'Отличный инструмент для профессионалов. Проверка совместимости материалов и автоматические рекомендации - это то, что нужно!',
-      rating: 5
-    },
-    {
-      name: 'Елена Смирнова',
-      role: 'Владелец квартиры',
-      icon: Laptop,
-      text: 'Делала ремонт впервые и очень боялась ошибиться с материалами. BuildCalc AI помог подобрать все идеально и уложиться в бюджет.',
-      rating: 5
-    },
-    {
-      name: 'Игорь Волков',
-      role: 'Менеджер магазина',
-      icon: Store,
-      text: 'Внедрили систему в нашем магазине - продажи выросли на 30%. Клиенты покупают полные комплекты материалов, а не отдельные позиции.',
-      rating: 5
-    },
-    {
-      name: 'Ольга Кузнецова',
-      role: 'Архитектор',
-      icon: Microscope,
-      text: 'Профессиональный подход к расчетам. Система учитывает все нюансы и предлагает оптимальные решения. Очень довольна!',
-      rating: 5
-    }
+    { icon: User,       key: '1' },
+    { icon: Palette,    key: '2' },
+    { icon: HardHat,    key: '3' },
+    { icon: Laptop,     key: '4' },
+    { icon: Store,      key: '5' },
+    { icon: Microscope, key: '6' },
   ];
 
   return (
@@ -51,10 +19,10 @@ export default function TestimonialsSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-            Отзывы пользователей
+            {t('testimonials.title')}
           </h2>
           <p className="text-base text-gray-600 max-w-2xl mx-auto">
-            Узнайте, что говорят о нас наши клиенты
+            {t('testimonials.subtitle')}
           </p>
         </div>
 
@@ -67,13 +35,13 @@ export default function TestimonialsSection() {
                 className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
               >
                 <div className="flex items-center mb-3">
-                  {[...Array(testimonial.rating)].map((_, i) => (
+                  {[...Array(5)].map((_, i) => (
                     <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                   ))}
                 </div>
 
                 <p className="text-sm text-gray-700 mb-5 italic leading-relaxed">
-                  "{testimonial.text}"
+                  "{t(`testimonials.items.${testimonial.key}.text`)}"
                 </p>
 
                 <div className="flex items-center">
@@ -82,10 +50,10 @@ export default function TestimonialsSection() {
                   </div>
                   <div>
                     <div className="font-semibold text-sm text-gray-900">
-                      {testimonial.name}
+                      {t(`testimonials.items.${testimonial.key}.name`)}
                     </div>
                     <div className="text-xs text-gray-600">
-                      {testimonial.role}
+                      {t(`testimonials.items.${testimonial.key}.role`)}
                     </div>
                   </div>
                 </div>

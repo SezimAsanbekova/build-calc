@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
 interface DashboardStats {
   materialCount: number;
@@ -25,16 +26,25 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const { t } = useTranslation('dashboard');
+  const { t: tc } = useTranslation('common');
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
+    const fetchStats = () =>
+      fetch('/api/dashboard/stats').then((r) => {
+        if (r.ok) r.json().then((data) => setStats(data));
+      }).catch(() => {});
+
     if (status === 'authenticated') {
-      fetch('/api/dashboard/stats')
-        .then((r) => r.json())
-        .then((data) => setStats(data))
-        .catch(() => {});
+      fetchStats();
+    } else if (status === 'unauthenticated') {
+      fetch('/api/auth/me').then((r) => {
+        if (r.ok) {
+          fetchStats();
+        } else {
+          router.push('/login');
+        }
+      }).catch(() => router.push('/login'));
     }
   }, [status, router]);
 
@@ -43,42 +53,23 @@ export default function DashboardPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Загрузка...</p>
+          <p className="text-gray-600">{tc('buttons.loading')}</p>
         </div>
       </div>
     );
   }
 
-  if (!session) {
-    return null;
-  }
-
   const statCards = [
-    {
-      label: 'Всего расчетов',
-      value: stats ? stats.calculationCount.toLocaleString('ru-RU') : '—',
-      icon: Calculator,
-      color: 'blue',
-    },
-    {
-      label: 'Сохраненные сметы',
-      value: stats ? stats.estimateCount.toLocaleString('ru-RU') : '—',
-      icon: FileText,
-      color: 'purple',
-    },
-    {
-      label: 'Материалов в базе',
-      value: stats ? stats.materialCount.toLocaleString('ru-RU') : '—',
-      icon: Package,
-      color: 'green',
-    },
+    { labelKey: 'stats.calculations', value: stats ? stats.calculationCount.toLocaleString('ru-RU') : '—', icon: Calculator, color: 'blue' },
+    { labelKey: 'stats.estimates',    value: stats ? stats.estimateCount.toLocaleString('ru-RU') : '—',    icon: FileText,   color: 'purple' },
+    { labelKey: 'stats.materials',    value: stats ? stats.materialCount.toLocaleString('ru-RU') : '—',    icon: Package,    color: 'green' },
   ];
 
   const quickActions = [
-    { label: 'Новый расчет', icon: Calculator, href: '/calculations/new', color: 'blue' },
-    { label: 'Мои сметы', icon: FileText, href: '/estimates', color: 'purple' },
-    { label: 'История', icon: History, href: '/history', color: 'green' },
-    { label: 'Настройки', icon: Settings, href: '/settings', color: 'gray' },
+    { labelKey: 'actions.newCalc',   icon: Calculator, href: '/calculations/new', color: 'blue' },
+    { labelKey: 'actions.estimates', icon: FileText,   href: '/estimates',        color: 'purple' },
+    { labelKey: 'actions.history',   icon: History,    href: '/history',          color: 'green' },
+    { labelKey: 'actions.settings',  icon: Settings,   href: '/settings',         color: 'gray' },
   ];
 
   return (
@@ -97,16 +88,16 @@ export default function DashboardPage() {
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-violet-600 rounded-full flex items-center justify-center">
               <LayoutDashboard className="w-4 h-4 text-white" />
             </div>
-            <span className="text-sm font-medium text-gray-700">{session.user?.name || 'Пользователь'}</span>
+            <span className="text-sm font-medium text-gray-700">{session?.user?.name || tc('nav.user')}</span>
           </div>
         </header>
 
         <main className="flex-1 px-8 py-8">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900">
-              Добро пожаловать, {session.user?.name || 'Пользователь'}!
+              {t('title')}, {session?.user?.name || tc('nav.user')}!
             </h1>
-            <p className="text-sm text-gray-500 mt-1">Управляйте своими расчетами и сметами</p>
+            <p className="text-sm text-gray-500 mt-1">{t('subtitle')}</p>
           </div>
 
           <div className="">
@@ -126,7 +117,7 @@ export default function DashboardPage() {
                   <TrendingUp className="w-5 h-5 text-green-500" />
                 </div>
                 <p className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</p>
-                <p className="text-sm text-gray-600">{stat.label}</p>
+                <p className="text-sm text-gray-600">{t(stat.labelKey)}</p>
               </div>
             );
           })}
@@ -134,7 +125,7 @@ export default function DashboardPage() {
 
         {/* Quick Actions */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Быстрые действия</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-6">{t('quickActions')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {quickActions.map((action, index) => {
               const Icon = action.icon;
@@ -148,7 +139,7 @@ export default function DashboardPage() {
                     <Icon className={`w-7 h-7 text-${action.color}-600`} />
                   </div>
                   <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">
-                    {action.label}
+                    {t(action.labelKey)}
                   </span>
                 </button>
               );
@@ -158,17 +149,17 @@ export default function DashboardPage() {
 
         {/* Recent Activity */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Последняя активность</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-6">{t('activity.title')}</h2>
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <History className="w-8 h-8 text-gray-400" />
             </div>
-            <p className="text-gray-600 mb-4">Пока нет активности</p>
+            <p className="text-gray-600 mb-4">{t('activity.empty')}</p>
             <button
               onClick={() => router.push('/calculations/new')}
               className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all duration-300 hover:scale-105"
             >
-              Создать первый расчет
+              {t('activity.firstCalc')}
             </button>
           </div>
         </div>

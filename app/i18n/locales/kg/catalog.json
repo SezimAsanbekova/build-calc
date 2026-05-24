@@ -1,0 +1,45 @@
+{
+  "title": "Материалдар каталогу",
+  "search": "Материалдарды издөө...",
+  "filters": {
+    "title": "Чыпкалар",
+    "category": "Категория",
+    "manufacturer": "Өндүрүүчү",
+    "repairLevel": "Оңдоо деңгээли",
+    "surfaceType": "Бет тибү",
+    "price": "Баасы",
+    "allCategories": "Бардык категориялар",
+    "allManufacturers": "Бардык өндүрүүчүлөр",
+    "allLevels": "Бардык деңгээлдер",
+    "allSurfaces": "Бардык түрлөр"
+  },
+  "repairLevel": {
+    "economy": "Эконом",
+    "standard": "Стандарт",
+    "premium": "Премиум"
+  },
+  "surfaceType": {
+    "floor": "Пол",
+    "walls": "Дубалдар",
+    "ceiling": "Потолок"
+  },
+  "stock": {
+    "inStock": "Стокто бар: {{count}} таңгак",
+    "outOfStock": "Стокто жок"
+  },
+  "noResults": "Натыйжалар жок",
+  "noResultsHint": "Чыпка параметрлерин өзгөртүп көрүңүз",
+  "reset": "Баштапкы абалга келтирүү",
+  "showing": "{{from}}–{{to}} көрсөтүлүүдө, жалпы {{total}}",
+  "details": {
+    "price": "Баасы",
+    "consumption": "Чыгым",
+    "packageQty": "Таңгак",
+    "available": "Стокто бар",
+    "category": "Категория",
+    "manufacturer": "Өндүрүүчү",
+    "description": "Сүрөттөмө",
+    "close": "Жабуу"
+  },
+  "perUnit": "{{unit}} үчүн"
+}

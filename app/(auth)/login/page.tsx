@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { Mail, Lock, CircleDot, AlertCircle } from 'lucide-react';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useTranslation('auth');
+  const { t: tc } = useTranslation('common');
   const [mounted, setMounted] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -35,17 +38,22 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Ошибка при входе');
+        setError(data.error || t('login.error'));
         setLoading(false);
         return;
       }
 
       if (mounted) {
-        router.push('/profile');
+        await signIn('credentials', {
+          redirect: false,
+          email: formData.email,
+          password: formData.password,
+        });
+        router.push('/dashboard');
         router.refresh();
       }
     } catch (err) {
-      setError('Произошла ошибка. Попробуйте снова.');
+      setError(t('login.genericError'));
       setLoading(false);
     }
   };
@@ -53,9 +61,9 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      await signIn('google', { callbackUrl: '/profile' });
+      await signIn('google', { callbackUrl: '/dashboard' });
     } catch (err) {
-      setError('Ошибка при входе через Google');
+      setError(t('login.error'));
       setLoading(false);
     }
   };
@@ -73,8 +81,8 @@ export default function LoginPage() {
               BuildCalc AI
             </span>
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Вход в систему</h1>
-          <p className="text-gray-600">Войдите, чтобы продолжить работу</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('login.title')}</h1>
+          <p className="text-gray-600">{t('login.title')}</p>
         </div>
 
         {/* Form Card */}
@@ -110,10 +118,10 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  Пароль
+                  {t('login.password')}
                 </label>
                 <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-700">
-                  Забыли пароль?
+                  {t('login.forgotPassword')}
                 </Link>
               </div>
               <div className="relative">
@@ -136,7 +144,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium rounded-lg hover:shadow-lg transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              {loading ? 'Вход...' : 'Войти'}
+              {loading ? t('buttons.loading') : t('login.submit')}
             </button>
           </form>
 
@@ -158,14 +166,14 @@ export default function LoginPage() {
             className="w-full py-3 border-2 border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all duration-300 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CircleDot className="w-5 h-5" />
-            <span>Войти через Google</span>
+            <span>{t('login.google')}</span>
           </button>
 
           {/* Register Link */}
           <p className="mt-6 text-center text-sm text-gray-600">
-            Нет аккаунта?{' '}
+            {t('login.noAccount')}{' '}
             <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-              Зарегистрироваться
+              {t('login.register')}
             </Link>
           </p>
         </div>
@@ -173,7 +181,7 @@ export default function LoginPage() {
         {/* Back to Home */}
         <div className="mt-6 text-center">
           <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
-            ← Вернуться на главную
+            {tc('buttons.home')}
           </Link>
         </div>
       </div>

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 import {
   Calculator,
   Sparkles,
@@ -16,41 +16,14 @@ import {
   Minus,
 } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
+import { useTranslation } from '@/app/i18n/useTranslation';
 
-const ROOM_TYPES = [
-  { value: 'kitchen', label: 'Кухня' },
-  { value: 'bathroom', label: 'Ванная' },
-  { value: 'bedroom', label: 'Спальня' },
-  { value: 'living_room', label: 'Гостиная' },
-  { value: 'office', label: 'Офис' },
-];
-
-const SURFACE_TYPES = [
-  { value: 'walls', label: 'Стены' },
-  { value: 'floor', label: 'Пол' },
-  { value: 'ceiling', label: 'Потолок' },
-  { value: 'full_room', label: 'Все поверхности сразу' },
-];
-
-const REPAIR_LEVELS = [
-  {
-    value: 'economy',
-    label: 'Эконом',
-    description: 'Базовые материалы по минимальной цене',
-    color: 'emerald',
-  },
-  {
-    value: 'standard',
-    label: 'Стандарт',
-    description: 'Оптимальное соотношение цены и качества',
-    color: 'blue',
-  },
-  {
-    value: 'premium',
-    label: 'Премиум',
-    description: 'Материалы высшего класса',
-    color: 'violet',
-  },
+const ROOM_TYPE_VALUES = ['kitchen','bathroom','bedroom','living_room','office'];
+const SURFACE_TYPE_VALUES = ['walls','floor','ceiling','full_room'];
+const REPAIR_LEVEL_VALUES = [
+  { value: 'economy',  color: 'emerald', descKey: 'new.repairLevels.economyDesc' },
+  { value: 'standard', color: 'blue',    descKey: 'new.repairLevels.standardDesc' },
+  { value: 'premium',  color: 'violet',  descKey: 'new.repairLevels.premiumDesc' },
 ];
 
 interface FormData {
@@ -88,17 +61,25 @@ const initialForm: FormData = {
 };
 
 export default function NewCalculationPage() {
-  const { data: session, status } = useSession();
+  const { isReady, status } = useAuthGuard();
   const router = useRouter();
+  const { t } = useTranslation('calculations');
   const [form, setForm] = useState<FormData>(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Partial<FormData>>({});
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
+    if (isReady) {
+      const raw = sessionStorage.getItem('calc_prefill');
+      if (raw) {
+        try {
+          const prefill = JSON.parse(raw) as Partial<FormData>;
+          setForm((prev) => ({ ...prev, ...prefill }));
+        } catch { /* ignore */ }
+        sessionStorage.removeItem('calc_prefill');
+      }
     }
-  }, [status, router]);
+  }, [isReady]);
 
   if (status === 'loading') {
     return (
@@ -108,7 +89,6 @@ export default function NewCalculationPage() {
     );
   }
 
-  if (!session) return null;
 
   const area = form.length && form.width ? (parseFloat(form.length) * parseFloat(form.width)).toFixed(1) : null;
   const showHeight = form.surfaceType === 'walls' || form.surfaceType === 'full_room';
@@ -119,15 +99,15 @@ export default function NewCalculationPage() {
 
   const validate = (): boolean => {
     const newErrors: Partial<FormData> = {};
-    if (!form.projectName.trim()) newErrors.projectName = 'Введите название проекта';
-    if (!form.roomType) newErrors.roomType = 'Выберите тип помещения';
-    if (!form.surfaceType) newErrors.surfaceType = 'Выберите тип поверхности';
-    if (!form.length || parseFloat(form.length) <= 0) newErrors.length = 'Длина должна быть > 0';
-    if (!form.width || parseFloat(form.width) <= 0) newErrors.width = 'Ширина должна быть > 0';
-    if (showHeight && (!form.height || parseFloat(form.height) <= 0)) newErrors.height = 'Высота должна быть > 0';
-    if (!form.repairLevel) newErrors.repairLevel = 'Выберите уровень ремонта';
+    if (!form.projectName.trim()) newErrors.projectName = t('new.errors.projectName');
+    if (!form.roomType) newErrors.roomType = t('new.errors.roomType');
+    if (!form.surfaceType) newErrors.surfaceType = t('new.errors.surfaceType');
+    if (!form.length || parseFloat(form.length) <= 0) newErrors.length = t('new.errors.length');
+    if (!form.width || parseFloat(form.width) <= 0) newErrors.width = t('new.errors.width');
+    if (showHeight && (!form.height || parseFloat(form.height) <= 0)) newErrors.height = t('new.errors.height');
+    if (!form.repairLevel) newErrors.repairLevel = t('new.errors.repairLevel');
     const budgetNum = parseFloat(form.budget);
-    if (form.budget === '' || isNaN(budgetNum) || budgetNum < 0) newErrors.budget = 'Укажите корректный бюджет';
+    if (form.budget === '' || isNaN(budgetNum) || budgetNum < 0) newErrors.budget = t('new.errors.budget');
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -154,7 +134,7 @@ export default function NewCalculationPage() {
         if (data.errors) {
           setErrors(data.errors);
         } else {
-          setErrors({ projectName: data.error || 'Ошибка расчёта' });
+          setErrors({ projectName: data.error || t('new.errors.calcError') });
         }
         setIsSubmitting(false);
         return;
@@ -162,7 +142,7 @@ export default function NewCalculationPage() {
       sessionStorage.setItem('calc_result', JSON.stringify(data));
       router.push('/calculations/result');
     } catch {
-      setErrors({ projectName: 'Не удалось выполнить расчёт. Проверьте подключение.' });
+      setErrors({ projectName: t('new.errors.connection') });
       setIsSubmitting(false);
     }
   };
@@ -177,7 +157,7 @@ export default function NewCalculationPage() {
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>Dashboard</span>
             <ChevronRight size={14} />
-            <span className="text-gray-900 font-medium">Новый расчет</span>
+            <span className="text-gray-900 font-medium">{t('new.title')}</span>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg">
@@ -185,7 +165,7 @@ export default function NewCalculationPage() {
               <span className="text-xs font-medium text-blue-700">AI расчет</span>
             </div>
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-violet-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
-              {session.user?.name?.charAt(0).toUpperCase() || 'U'}
+              {'U'}
             </div>
           </div>
         </header>
@@ -199,8 +179,8 @@ export default function NewCalculationPage() {
                 <Calculator className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Новый расчет</h1>
-                <p className="text-sm text-gray-500">Заполните параметры — AI подберет материалы</p>
+                <h1 className="text-2xl font-bold text-gray-900">{t('new.title')}</h1>
+                <p className="text-sm text-gray-500">{t('new.subtitle')}</p>
               </div>
             </div>
           </div>
@@ -215,17 +195,17 @@ export default function NewCalculationPage() {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <Tag size={16} className="text-blue-600" />
-                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Проект</h2>
+                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t('new.projectName')}</h2>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Название проекта
+                      {t('new.projectName')}
                     </label>
                     <input
                       type="text"
                       value={form.projectName}
                       onChange={(e) => handleChange('projectName', e.target.value)}
-                      placeholder="Например: Ремонт спальни"
+                      placeholder={t('new.projectNamePlaceholder')}
                       className={`w-full px-4 py-3 rounded-xl border text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
                         errors.projectName
                           ? 'border-red-300 focus:ring-red-200'
@@ -242,13 +222,13 @@ export default function NewCalculationPage() {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <Home size={16} className="text-blue-600" />
-                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Параметры помещения</h2>
+                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t('new.roomType')}</h2>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Room Type */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Тип помещения
+                        {t('new.roomType')}
                       </label>
                       <select
                         value={form.roomType}
@@ -259,9 +239,9 @@ export default function NewCalculationPage() {
                             : 'border-gray-200 focus:border-blue-400 focus:ring-blue-100'
                         }`}
                       >
-                        <option value="">Выберите тип</option>
-                        {ROOM_TYPES.map((r) => (
-                          <option key={r.value} value={r.value}>{r.label}</option>
+                        <option value="">{t('new.roomType')}</option>
+                        {ROOM_TYPE_VALUES.map((v) => (
+                          <option key={v} value={v}>{t(`new.roomTypes.${v === 'living_room' ? 'living_room' : v}`)}</option>
                         ))}
                       </select>
                       {errors.roomType && (
@@ -272,7 +252,7 @@ export default function NewCalculationPage() {
                     {/* Surface Type */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Тип поверхности
+                        {t('new.surfaceType')}
                       </label>
                       <select
                         value={form.surfaceType}
@@ -283,13 +263,10 @@ export default function NewCalculationPage() {
                             : 'border-gray-200 focus:border-blue-400 focus:ring-blue-100'
                         }`}
                       >
-                        <option value="">Выберите поверхность</option>
-                        <option value="walls">Стены</option>
-                        <option value="floor">Пол</option>
-                        <option value="ceiling">Потолок</option>
-                        <optgroup label="Комплексный ремонт">
-                          <option value="full_room">Все поверхности сразу</option>
-                        </optgroup>
+                        <option value="">{t('new.surfaceType')}</option>
+                        {SURFACE_TYPE_VALUES.map((v) => (
+                          <option key={v} value={v}>{t(`new.surfaceTypes.${v}`)}</option>
+                        ))}
                       </select>
                       {errors.surfaceType && (
                         <p className="mt-1.5 text-xs text-red-500">{errors.surfaceType}</p>
@@ -297,7 +274,7 @@ export default function NewCalculationPage() {
                       {form.surfaceType === 'full_room' && (
                         <div className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 rounded-lg">
                           <Sparkles size={12} className="text-violet-500 flex-shrink-0" />
-                          <span className="text-xs text-violet-600">Система рассчитает стены, пол и потолок одновременно</span>
+                          <span className="text-xs text-violet-600">{t('new.fullRoomHint')}</span>
                         </div>
                       )}
                     </div>
@@ -308,18 +285,18 @@ export default function NewCalculationPage() {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <Ruler size={16} className="text-blue-600" />
-                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Размеры (м)</h2>
+                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t('new.dimensions')}</h2>
                   </div>
                   <div className={`grid gap-4 ${showHeight ? 'grid-cols-3' : 'grid-cols-2'}`}>
                     {(
                       [
-                        { field: 'length' as keyof FormData, label: 'Длина', placeholder: '5.0' },
-                        { field: 'width' as keyof FormData, label: 'Ширина', placeholder: '4.0' },
-                      ] as { field: keyof FormData; label: string; placeholder: string }[]
-                    ).map(({ field, label, placeholder }) => (
+                        { field: 'length' as keyof FormData, labelKey: 'new.length', placeholder: '5.0' },
+                        { field: 'width' as keyof FormData, labelKey: 'new.width', placeholder: '4.0' },
+                      ] as { field: keyof FormData; labelKey: string; placeholder: string }[]
+                    ).map(({ field, labelKey, placeholder }) => (
                       <div key={field}>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                          {label}
+                          {t(labelKey)}
                         </label>
                         <div className="relative">
                           <input
@@ -344,7 +321,7 @@ export default function NewCalculationPage() {
                     ))}
                     {showHeight && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Высота</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('new.height')}</label>
                         <div className="relative">
                           <input
                             type="number"
@@ -370,7 +347,7 @@ export default function NewCalculationPage() {
                     <div className="mt-4 flex items-center gap-2 px-4 py-2.5 bg-blue-50 rounded-xl">
                       <Info size={14} className="text-blue-500 flex-shrink-0" />
                       <span className="text-sm text-blue-700">
-                        Площадь пола: <strong>{area} м²</strong>
+                        {t('new.areaPreview')}: <strong>{area} м²</strong>
                       </span>
                     </div>
                   )}
@@ -381,27 +358,27 @@ export default function NewCalculationPage() {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-1">
                       <Minus size={16} className="text-orange-500" />
-                      <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Проёмы</h2>
-                      <span className="text-xs text-gray-400 font-normal normal-case ml-1">— вычитаются из площади стен</span>
+                      <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t('new.windows')}/{t('new.doors')}</h2>
+                      <span className="text-xs text-gray-400 font-normal normal-case ml-1">{t('new.openingsHint')}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-6 mt-5">
                       {/* Windows */}
                       <div>
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Окна</h3>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{t('new.windows')}</h3>
                         <div className="space-y-3">
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Количество</label>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">{t('new.count')}</label>
                             <input type="number" min="0" value={form.windowCount} onChange={(e) => handleChange('windowCount', e.target.value)}
                               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 admin-number-input" />
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Ширина (м)</label>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">{t('new.windowWidth')}</label>
                               <input type="number" step="0.1" min="0" value={form.windowWidth} onChange={(e) => handleChange('windowWidth', e.target.value)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 admin-number-input" />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Высота (м)</label>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">{t('new.windowHeight')}</label>
                               <input type="number" step="0.1" min="0" value={form.windowHeight} onChange={(e) => handleChange('windowHeight', e.target.value)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 admin-number-input" />
                             </div>
@@ -410,21 +387,21 @@ export default function NewCalculationPage() {
                       </div>
                       {/* Doors */}
                       <div>
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Двери</h3>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{t('new.doors')}</h3>
                         <div className="space-y-3">
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Количество</label>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">{t('new.count')}</label>
                             <input type="number" min="0" value={form.doorCount} onChange={(e) => handleChange('doorCount', e.target.value)}
                               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 admin-number-input" />
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Ширина (м)</label>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">{t('new.doorWidth')}</label>
                               <input type="number" step="0.1" min="0" value={form.doorWidth} onChange={(e) => handleChange('doorWidth', e.target.value)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 admin-number-input" />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Высота (м)</label>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">{t('new.doorHeight')}</label>
                               <input type="number" step="0.1" min="0" value={form.doorHeight} onChange={(e) => handleChange('doorHeight', e.target.value)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 admin-number-input" />
                             </div>
@@ -436,7 +413,7 @@ export default function NewCalculationPage() {
                       <div className="mt-4 flex items-center gap-2 px-4 py-2.5 bg-orange-50 rounded-xl">
                         <Info size={14} className="text-orange-500 flex-shrink-0" />
                         <span className="text-sm text-orange-700">
-                          Площадь проёмов: <strong>{openingsPreview.toFixed(1)} м²</strong> — будет вычтена из площади стен
+                          {t('new.openingsPreview', { area: openingsPreview.toFixed(1) })}
                         </span>
                       </div>
                     )}
@@ -447,10 +424,10 @@ export default function NewCalculationPage() {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <Layers size={16} className="text-blue-600" />
-                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Уровень ремонта</h2>
+                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t('new.repairLevel')}</h2>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
-                    {REPAIR_LEVELS.map((level) => {
+                    {REPAIR_LEVEL_VALUES.map((level) => {
                       const isSelected = form.repairLevel === level.value;
                       const colorMap: Record<string, string> = {
                         emerald: isSelected
@@ -481,8 +458,8 @@ export default function NewCalculationPage() {
                           className={`relative p-4 rounded-xl border-2 text-left cursor-pointer transition-all duration-150 ${colorMap[level.color]}`}
                         >
                           <div className={`w-2.5 h-2.5 rounded-full mb-3 ${dotMap[level.color]}`} />
-                          <p className={`text-sm font-semibold ${textMap[level.color]}`}>{level.label}</p>
-                          <p className="text-xs text-gray-500 mt-0.5 leading-tight">{level.description}</p>
+                          <p className={`text-sm font-semibold ${textMap[level.color]}`}>{t(`new.repairLevels.${level.value}`)}</p>
+                          <p className="text-xs text-gray-500 mt-0.5 leading-tight">{t(`new.repairLevels.${level.value}Desc`)}</p>
                           {isSelected && (
                             <div className={`absolute top-3 right-3 w-4 h-4 rounded-full ${dotMap[level.color]} flex items-center justify-center`}>
                               <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -506,11 +483,11 @@ export default function NewCalculationPage() {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <DollarSign size={16} className="text-blue-600" />
-                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Бюджет</h2>
+                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t('new.budget')}</h2>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Максимальный бюджет
+                      {t('new.budget')}
                     </label>
                     <div className="relative">
                       <input
@@ -553,32 +530,32 @@ export default function NewCalculationPage() {
 
                 {/* Summary Card */}
                 <div className="bg-gradient-to-br from-blue-600 to-violet-600 rounded-2xl p-6 text-white shadow-lg shadow-blue-200">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-100 mb-4">Сводка</h3>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-100 mb-4">{t('new.summary')}</h3>
                   <div className="space-y-2.5">
                     <div className="flex justify-between text-sm">
-                      <span className="text-blue-200">Помещение</span>
+                      <span className="text-blue-200">{t('new.roomType')}</span>
                       <span className="font-medium">
-                        {form.roomType ? ROOM_TYPES.find((r) => r.value === form.roomType)?.label : '—'}
+                        {form.roomType ? t(`new.roomTypes.${form.roomType}`) : '—'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-blue-200">Поверхность</span>
+                      <span className="text-blue-200">{t('new.surfaceType')}</span>
                       <span className="font-medium">
-                        {form.surfaceType ? SURFACE_TYPES.find((s) => s.value === form.surfaceType)?.label : '—'}
+                        {form.surfaceType ? t(`new.surfaceTypes.${form.surfaceType}`) : '—'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-blue-200">Площадь</span>
+                      <span className="text-blue-200">{t('new.areaPreview')}</span>
                       <span className="font-medium">{area ? `${area} м²` : '—'}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-blue-200">Уровень</span>
+                      <span className="text-blue-200">{t('new.repairLevel')}</span>
                       <span className="font-medium">
-                        {form.repairLevel ? REPAIR_LEVELS.find((l) => l.value === form.repairLevel)?.label : '—'}
+                        {form.repairLevel ? t(`new.repairLevels.${form.repairLevel}`) : '—'}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-blue-200">Бюджет</span>
+                      <span className="text-blue-200">{t('new.budget')}</span>
                       <span className="font-medium">
                         {form.budget ? `${Number(form.budget).toLocaleString('ru-RU')} сом` : '—'}
                       </span>
@@ -594,12 +571,12 @@ export default function NewCalculationPage() {
                       {isSubmitting ? (
                         <>
                           <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                          Расчет...
+                          {t('new.calculating')}
                         </>
                       ) : (
                         <>
                           <Sparkles size={16} />
-                          Рассчитать материалы
+                          {t('new.submit')}
                         </>
                       )}
                     </button>
