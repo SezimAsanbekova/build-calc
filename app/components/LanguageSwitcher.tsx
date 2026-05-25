@@ -24,7 +24,6 @@ export default function LanguageSwitcher() {
           }`}
         >
           <span>{l.flag}</span>
-          <span>{l.label}</span>
         </button>
       ))}
     </div>

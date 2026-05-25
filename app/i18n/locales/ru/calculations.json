@@ -27,6 +27,59 @@
     "openingsHint": "вычитаются из площади стен",
     "openingsPreview": "Площадь проёмов: {{area}} м² — вычтется из площади стен",
     "summary": "Сводка",
+    "sectionsSelected": "выбрано",
+    "wallFinishing": "Тип отделки стен",
+    "floorCovering": "Тип покрытия пола",
+    "ceilingType": "Тип потолка",
+    "wallFinishings": {
+      "painting": "Покраска",
+      "wallpaper": "Обои",
+      "plaster": "Штукатурка",
+      "panels": "Панели"
+    },
+    "wallFinishingHint": {
+      "painting": "Грунтовка + шпаклёвка + краска",
+      "wallpaper": "Обои + клей + грунтовка + шпаклёвка",
+      "plaster": "Штукатурка + грунтовка",
+      "panels": "Панели + крепёж"
+    },
+    "floorCoverings": {
+      "laminate": "Ламинат",
+      "linoleum": "Линолеум",
+      "parquet": "Паркет",
+      "tile": "Плитка"
+    },
+    "ceilingTypes": {
+      "painting": "Покраска",
+      "stretch": "Натяжной",
+      "drywall": "Гипсокартон"
+    },
+    "customRoom": {
+      "add": "Своё помещение",
+      "createTitle": "Создать помещение",
+      "editTitle": "Редактировать помещение",
+      "name": "Название",
+      "namePlaceholder": "Например: Мастерская, Прачечная...",
+      "icon": "Иконка",
+      "description": "Описание",
+      "descriptionPlaceholder": "Необязательно",
+      "create": "Создать",
+      "save": "Сохранить",
+      "cancel": "Отмена",
+      "nameRequired": "Введите название",
+      "saveError": "Ошибка сохранения"
+    },
+    "sections": {
+      "title": "Что включить в смету?",
+      "walls": "Стены",
+      "floor": "Пол",
+      "ceiling": "Потолок",
+      "lighting": "Освещение",
+      "electrical": "Электрика",
+      "doors": "Двери",
+      "windows": "Окна",
+      "plumbing": "Сантехника"
+    },
     "roomTypes": {
       "living_room": "Гостиная",
       "bedroom": "Спальня",
@@ -59,6 +112,7 @@
       "height": "Высота должна быть > 0",
       "repairLevel": "Выберите уровень ремонта",
       "budget": "Укажите корректный бюджет",
+      "sections": "Выберите хотя бы одну секцию",
       "calcError": "Ошибка расчёта",
       "connection": "Не удалось выполнить расчёт. Проверьте подключение."
     }

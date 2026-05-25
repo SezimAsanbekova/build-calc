@@ -77,6 +77,8 @@ model User {
 
   verificationCodes VerificationCode[]
 
+  customRooms       CustomRoom[]
+
   @@map("users")
 }
 
@@ -515,6 +517,31 @@ model PendingRegistration {
 
   @@index([email])
   @@map("pending_registrations")
+}
+
+//////////////////////////////////////////////////////
+// CUSTOM ROOMS
+//////////////////////////////////////////////////////
+
+model CustomRoom {
+  id          String   @id @default(uuid()) @db.Uuid
+
+  userId      String   @map("user_id") @db.Uuid
+
+  name        String   @db.VarChar(255)
+
+  icon        String?  @db.VarChar(10)
+
+  description String?  @db.Text
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("custom_rooms")
 }
 
 model Setting {

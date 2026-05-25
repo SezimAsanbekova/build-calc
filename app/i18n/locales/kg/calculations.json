@@ -27,6 +27,59 @@
     "openingsHint": "дубал аянтынан чегерилет",
     "openingsPreview": "Тешиктердин аянты: {{area}} м² — дубал аянтынан чегерилет",
     "summary": "Кыскача",
+    "sectionsSelected": "тандалды",
+    "wallFinishing": "Дубал отделкасынын түрү",
+    "floorCovering": "Пол жабуусунун түрү",
+    "ceilingType": "Потолок түрү",
+    "wallFinishings": {
+      "painting": "Боөо",
+      "wallpaper": "Обой",
+      "plaster": "Шыбоо",
+      "panels": "Панелдер"
+    },
+    "wallFinishingHint": {
+      "painting": "Грунт + шпаклевка + боөок",
+      "wallpaper": "Обой + желим + грунт + шпаклевка",
+      "plaster": "Шыбоо + грунт",
+      "panels": "Панелдер + бекитүү"
+    },
+    "floorCoverings": {
+      "laminate": "Ламинат",
+      "linoleum": "Линолеум",
+      "parquet": "Паркет",
+      "tile": "Плитка"
+    },
+    "ceilingTypes": {
+      "painting": "Боөо",
+      "stretch": "Тартмалу",
+      "drywall": "Гипсокартон"
+    },
+    "customRoom": {
+      "add": "Өз бөлмөсү",
+      "createTitle": "Бөлмө түзүү",
+      "editTitle": "Бөлмөнү өзгөртүү",
+      "name": "Аталышы",
+      "namePlaceholder": "Маселен, Кир-жайма...",
+      "icon": "Иконка",
+      "description": "Сүрәттөө",
+      "descriptionPlaceholder": "Миндеттүү",
+      "create": "Түзүү",
+      "save": "Сактао",
+      "cancel": "Баш тарту",
+      "nameRequired": "Аталышын жазыңыз",
+      "saveError": "Сактоодо ката"
+    },
+    "sections": {
+      "title": "Сметага эмне кошуу?",
+      "walls": "Дубалдар",
+      "floor": "Пол",
+      "ceiling": "Потолок",
+      "lighting": "Жарыктандыруу",
+      "electrical": "Электрика",
+      "doors": "Эшиктер",
+      "windows": "Терезелер",
+      "plumbing": "Сантехника"
+    },
     "roomTypes": {
       "living_room": "Мейманкана",
       "bedroom": "Жаткан бөлмө",
@@ -59,6 +112,7 @@
       "height": "Бийиктиги > 0 болусу керек",
       "repairLevel": "Ремонт деңгеелин тандаңыз",
       "budget": "Түз бюджетти көрсөтүңүз",
+      "sections": "Жок дегенде бир бөлүм тандаңыз",
       "calcError": "Эсептөөдө ката",
       "connection": "Эсептөө аткарылган жок. Байланышты текшериңиз."
     }

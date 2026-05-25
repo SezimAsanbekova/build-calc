@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Grid3x3, Paintbrush, Layers, Wallpaper, Droplet, Brush } from 'lucide-react';
 import { useTranslation } from '@/app/i18n/useTranslation';
 
@@ -58,18 +59,18 @@ export default function MaterialsSection() {
                   </div>
                 </div>
 
-                <button className="mt-3 w-full py-2 bg-gray-900 text-white text-sm rounded-lg font-semibold hover:bg-blue-600 transition-colors duration-300">
+                <Link href="/register" className="mt-3 w-full py-2 bg-gray-900 text-white text-sm rounded-lg font-semibold hover:bg-blue-600 transition-colors duration-300 block text-center">
                   {t('materials.details')}
-                </button>
+                </Link>
               </div>
             );
           })}
         </div>
 
         <div className="text-center">
-          <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-2xl transition-all duration-300 hover:scale-105">
+          <Link href="/register" className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-2xl transition-all duration-300 hover:scale-105 inline-block">
             {t('materials.viewAll')}
-          </button>
+          </Link>
         </div>
       </div>
     </section>

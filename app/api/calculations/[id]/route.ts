@@ -134,6 +134,60 @@ export async function GET(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const groups: { surfaceLabel: string; items: { materialId: string; quantity: number; packageCount: number; unitPrice: number; totalPrice: number }[] }[] = body.groups ?? [];
+
+    const calc = await prisma.calculation.findFirst({
+      where: { id, userId: session.user.id },
+      include: { variants: { orderBy: { createdAt: 'asc' } } },
+    });
+
+    if (!calc) return NextResponse.json({ error: 'Расчёт не найден' }, { status: 404 });
+
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < calc.variants.length; i++) {
+        const variant = calc.variants[i];
+        const group = groups[i];
+        if (!group) continue;
+
+        const newTotal = group.items.reduce((s, it) => s + it.totalPrice, 0);
+
+        await tx.variantItem.deleteMany({ where: { variantId: variant.id } });
+        await tx.variantItem.createMany({
+          data: group.items.map((it) => ({
+            variantId: variant.id,
+            materialId: it.materialId,
+            quantity: it.quantity,
+            packageCount: it.packageCount,
+            unitPrice: it.unitPrice,
+            totalPrice: it.totalPrice,
+          })),
+        });
+        await tx.variant.update({
+          where: { id: variant.id },
+          data: { totalPrice: newTotal, fitsBudget: calc.budget ? newTotal <= Number(calc.budget) : true },
+        });
+      }
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('Calculation PATCH error:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },

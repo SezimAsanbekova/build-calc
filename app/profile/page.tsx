@@ -39,6 +39,7 @@ export default function ProfilePage() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [formData, setFormData] = useState({ name: '', email: '' });
+  const [stats, setStats] = useState<{ calculationCount: number; estimateCount: number } | null>(null);
 
   // Avatar
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +75,13 @@ export default function ProfilePage() {
       fetchUser();
     }
   }, [status, router]);
+
+  useEffect(() => {
+    fetch('/api/dashboard/stats')
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setStats(d); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (session?.user && !userData) {
@@ -413,15 +421,21 @@ export default function ProfilePage() {
           <h2 className="text-xl font-bold text-gray-900 mb-6">{t('stats.title')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center p-6 bg-blue-50 rounded-xl">
-              <p className="text-3xl font-bold text-blue-600 mb-2">0</p>
+              <p className="text-3xl font-bold text-blue-600 mb-2">
+                {stats ? stats.calculationCount.toLocaleString('ru-RU') : '—'}
+              </p>
               <p className="text-sm text-gray-600">{t('stats.calculations')}</p>
             </div>
             <div className="text-center p-6 bg-purple-50 rounded-xl">
-              <p className="text-3xl font-bold text-purple-600 mb-2">0</p>
+              <p className="text-3xl font-bold text-purple-600 mb-2">
+                {stats ? stats.estimateCount.toLocaleString('ru-RU') : '—'}
+              </p>
               <p className="text-sm text-gray-600">{t('stats.savedEstimates')}</p>
             </div>
             <div className="text-center p-6 bg-green-50 rounded-xl">
-              <p className="text-3xl font-bold text-green-600 mb-2">0</p>
+              <p className="text-3xl font-bold text-green-600 mb-2">
+                {stats ? (stats.calculationCount > 0 ? stats.calculationCount - 1 : 0).toLocaleString('ru-RU') : '—'}
+              </p>
               <p className="text-sm text-gray-600">{t('stats.comparisons')}</p>
             </div>
           </div>

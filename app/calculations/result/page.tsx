@@ -1,54 +1,28 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthGuard } from '@/hooks/useAuthGuard';
 import { useRouter } from 'next/navigation';
 import {
-  CheckCircle,
-  ChevronRight,
-  Package,
-  DollarSign,
-  Layers,
-  Calculator,
-  ArrowLeft,
-  Download,
-  RotateCcw,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
-  Building2,
-  AlertTriangle,
-  Lightbulb,
-  Brain,
-  Info,
-  PiggyBank,
-  ShieldCheck,
+  CheckCircle, ChevronRight, Package, DollarSign, Layers, Calculator, ArrowLeft,
+  Download, RotateCcw, Sparkles, TrendingDown, TrendingUp, AlertTriangle,
+  Lightbulb, Info, Save, Clock, BadgeCheck,
 } from 'lucide-react';
 import Sidebar from '../../components/Sidebar';
 import { useTranslation } from '@/app/i18n/useTranslation';
-
-interface ResultItem {
-  materialId: string;
-  quantity: number;
-  packageCount: number;
-  unitPrice: number;
-  totalPrice: number;
-  material: {
-    id: string;
-    name: string;
-    unit: string;
-    packageUnit: string;
-    packageQuantity: number;
-    category: { name: string };
-    manufacturer: { name: string };
-  };
-}
+import {
+  SmartRecommendationsBlock, ReplacePanel, AddMaterialModal, MaterialsEditorTable,
+  HistoryPanel,
+} from './_components';
+import type {
+  EditableItem, EditableGroup, HistoryEntry, SmartRecommendation,
+} from './_components';
 
 interface SurfaceGroup {
   surface: string;
   label: string;
   surfaceArea: number;
-  items: ResultItem[];
+  items: import('./_components').ResultItem[];
   subtotal: number;
 }
 
@@ -70,13 +44,6 @@ interface BudgetOpt {
   savings: number;
   savingsPercent: number;
   reason: string | null;
-}
-
-interface SmartRecommendation {
-  type: 'warning' | 'success' | 'info' | 'saving';
-  title: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
 }
 
 interface CalcResult {
@@ -102,195 +69,16 @@ interface CalcResult {
   smartRecommendations?: SmartRecommendation[];
 }
 
-// ── Интеллектуальные рекомендации ─────────────────────────────────────────────
+let _localId = 0;
+function mkId() { return `item_${++_localId}_${Math.random().toString(36).slice(2, 7)}`; }
 
-const REC_STYLES = {
-  warning: {
-    card: 'bg-amber-50 border-amber-200',
-    icon: 'bg-amber-100',
-    iconColor: 'text-amber-600',
-    title: 'text-amber-900',
-    desc: 'text-amber-700',
-    badge: 'bg-amber-100 text-amber-700',
-    Icon: AlertTriangle,
-  },
-  success: {
-    card: 'bg-emerald-50 border-emerald-200',
-    icon: 'bg-emerald-100',
-    iconColor: 'text-emerald-600',
-    title: 'text-emerald-900',
-    desc: 'text-emerald-700',
-    badge: 'bg-emerald-100 text-emerald-700',
-    Icon: ShieldCheck,
-  },
-  info: {
-    card: 'bg-blue-50 border-blue-200',
-    icon: 'bg-blue-100',
-    iconColor: 'text-blue-600',
-    title: 'text-blue-900',
-    desc: 'text-blue-700',
-    badge: 'bg-blue-100 text-blue-700',
-    Icon: Info,
-  },
-  saving: {
-    card: 'bg-violet-50 border-violet-200',
-    icon: 'bg-violet-100',
-    iconColor: 'text-violet-600',
-    title: 'text-violet-900',
-    desc: 'text-violet-700',
-    badge: 'bg-violet-100 text-violet-700',
-    Icon: PiggyBank,
-  },
-} as const;
-
-type TFunc = (key: string, params?: Record<string, string>) => string;
-
-function SmartRecommendationsBlock({ recs, t }: { recs: SmartRecommendation[]; t: TFunc }) {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-5">
-      <div className="flex items-center gap-2 mb-5">
-        <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-violet-600 rounded-xl flex items-center justify-center">
-          <Brain size={15} className="text-white" />
-        </div>
-        <div>
-          <h2 className="text-sm font-bold text-gray-800">{t('result.smartTitle')}</h2>
-          <p className="text-xs text-gray-400">{t('result.smartSubtitle')}</p>
-        </div>
-        {recs.length > 0 && (
-          <span className="ml-auto text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
-            {recs.length} {t('result.recCount')}
-          </span>
-        )}
-      </div>
-
-      {recs.length === 0 ? (
-        <div className="flex items-center gap-3 px-4 py-4 bg-emerald-50 rounded-xl border border-emerald-100">
-          <ShieldCheck size={20} className="text-emerald-600 flex-shrink-0" />
-          <p className="text-sm font-medium text-emerald-800">
-            {t('result.noProblems')}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3">
-          {recs.map((rec, i) => {
-            const s = REC_STYLES[rec.type];
-            const RecIcon = s.Icon;
-            return (
-              <div key={i} className={`flex gap-3 p-4 rounded-xl border ${s.card}`}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${s.icon}`}>
-                  <RecIcon size={16} className={s.iconColor} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <p className={`text-sm font-semibold ${s.title}`}>{rec.title}</p>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.badge}`}>
-                      {t(`result.priority.${rec.priority}`)}
-                    </span>
-                  </div>
-                  <p className={`text-xs leading-relaxed ${s.desc}`}>{rec.description}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function groupByCategory(items: ResultItem[]) {
-  const map: Record<string, ResultItem[]> = {};
-  for (const item of items) {
-    const cat = item.material.category.name;
-    if (!map[cat]) map[cat] = [];
-    map[cat].push(item);
-  }
-  return Object.entries(map).map(([category, catItems]) => ({
-    category,
-    items: catItems,
-    subtotal: catItems.reduce((s, i) => s + Number(i.totalPrice), 0),
+function toEditableGroups(groups: SurfaceGroup[]): EditableGroup[] {
+  return groups.map((g) => ({
+    surface: g.surface,
+    label: g.label,
+    surfaceArea: g.surfaceArea,
+    items: g.items.map((i) => ({ ...i, _id: mkId() })),
   }));
-}
-
-function MaterialsTable({ items, totalLabel, t }: { items: ResultItem[]; totalLabel: string; t: TFunc }) {
-  if (items.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <Building2 size={20} className="text-gray-300 mb-2" />
-        <p className="text-sm text-gray-400">{t('result.noMaterials')}</p>
-      </div>
-    );
-  }
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="bg-gray-50">
-            <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase">{t('result.material')}</th>
-            <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500 uppercase">{t('result.manufacturer')}</th>
-            <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500 uppercase">{t('result.category')}</th>
-            <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500 uppercase">{t('result.qty')}</th>
-            <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500 uppercase">{t('result.packages')}</th>
-            <th className="text-right px-3 py-3 text-xs font-semibold text-gray-500 uppercase">{t('result.unitPrice')}</th>
-            <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase">{t('result.total')}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-50">
-          {groupByCategory(items).map((catGroup, ci) => (
-            <React.Fragment key={ci}>
-              {groupByCategory(items).length > 1 && (
-                <tr>
-                  <td colSpan={7} className="px-5 py-2 bg-slate-50 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-                    {catGroup.category}
-                  </td>
-                </tr>
-              )}
-              {catGroup.items.map((item, i) => (
-                <tr key={`${ci}-${i}`} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <span className="text-sm font-medium text-gray-900">{item.material.name}</span>
-                  </td>
-                  <td className="px-3 py-3.5">
-                    <span className="text-sm text-gray-500">{item.material.manufacturer.name}</span>
-                  </td>
-                  <td className="px-3 py-3.5">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700">
-                      {item.material.category.name}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3.5 text-right text-sm text-gray-700">
-                    {Number(item.quantity) % 1 !== 0 ? Number(item.quantity).toFixed(2) : item.quantity}{' '}
-                    {item.material.unit}
-                  </td>
-                  <td className="px-3 py-3.5 text-right text-sm text-gray-700">
-                    {item.packageCount} {item.material.packageUnit}
-                  </td>
-                  <td className="px-3 py-3.5 text-right text-sm text-gray-600">
-                    {Number(item.unitPrice).toLocaleString('ru-RU')} сом
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <span className="text-sm font-semibold text-gray-900">
-                      {Math.round(Number(item.totalPrice)).toLocaleString('ru-RU')} сом
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </React.Fragment>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="bg-gradient-to-r from-blue-50 to-violet-50">
-            <td colSpan={6} className="px-5 py-3 text-sm font-semibold text-gray-700">{totalLabel}</td>
-            <td className="px-5 py-3 text-right">
-              <span className="text-base font-bold text-blue-700">
-                {Math.round(items.reduce((s, i) => s + Number(i.totalPrice), 0)).toLocaleString('ru-RU')} сом
-              </span>
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
 }
 
 export default function ResultPage() {
@@ -300,6 +88,16 @@ export default function ResultPage() {
   const [result, setResult] = useState<CalcResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // ── Editor state ──────────────────────────────────────────────────────────
+  const [editableGroups, setEditableGroups] = useState<EditableGroup[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
+  const [replaceTarget, setReplaceTarget] = useState<EditableItem | null>(null);
+  const [addTarget, setAddTarget] = useState<{ groupIndex: number; groupLabel: string } | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+
   useEffect(() => {
     if (!isReady) return;
     const raw = sessionStorage.getItem('calc_result');
@@ -307,9 +105,162 @@ export default function ResultPage() {
       router.push('/calculations/new');
       return;
     }
-    setResult(JSON.parse(raw));
+    const parsed: CalcResult = JSON.parse(raw);
+    setResult(parsed);
+    setEditableGroups(toEditableGroups(parsed.surfaceGroups ?? []));
     setIsLoading(false);
   }, [isReady, router]);
+
+  // ── Live totals ───────────────────────────────────────────────────────────
+  const liveTotal = editableGroups.reduce((s, g) => s + g.items.reduce((gs, i) => gs + i.totalPrice, 0), 0);
+  const liveTotalItems = editableGroups.reduce((s, g) => s + g.items.length, 0);
+
+  function addHistory(entry: Omit<HistoryEntry, 'time'>) {
+    const now = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    setHistory((prev) => [...prev, { ...entry, time: now }]);
+  }
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleDelete = useCallback((groupIndex: number, itemId: string) => {
+    setEditableGroups((prev) => {
+      const deleted = prev[groupIndex]?.items.find((i) => i._id === itemId);
+      const next = prev.map((g, gi) =>
+        gi !== groupIndex ? g : { ...g, items: g.items.filter((i) => i._id !== itemId) },
+      );
+      if (deleted) {
+        addHistory({
+          type: 'delete',
+          description: `Удалён: ${deleted.material.name}`,
+          payload: { groupIndex, item: deleted },
+        });
+      }
+      return next;
+    });
+    setIsDirty(true);
+  }, []);
+
+  const handleRestore = useCallback((entryIndex: number) => {
+    setHistory((prevHist) => {
+      const entry = prevHist[entryIndex];
+      if (!entry || entry.type !== 'delete' || entry.restored || !entry.payload) return prevHist;
+
+      const { groupIndex, item } = entry.payload;
+      setEditableGroups((prevGroups) =>
+        prevGroups.map((g, gi) =>
+          gi !== groupIndex ? g : { ...g, items: [...g.items, item] },
+        ),
+      );
+      setIsDirty(true);
+
+      const now = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      const updated = prevHist.map((e, i) => (i === entryIndex ? { ...e, restored: true } : e));
+      return [
+        ...updated,
+        { type: 'restore', description: `Восстановлен: ${item.material.name}`, time: now },
+      ];
+    });
+  }, []);
+
+  const handleQtyChange = useCallback((groupIndex: number, itemId: string, newPkg: number) => {
+    setEditableGroups((prev) =>
+      prev.map((g, gi) =>
+        gi !== groupIndex ? g : {
+          ...g,
+          items: g.items.map((i) =>
+            i._id !== itemId ? i : {
+              ...i,
+              packageCount: newPkg,
+              totalPrice: Math.round(i.unitPrice * newPkg),
+            },
+          ),
+        },
+      ),
+    );
+    setIsDirty(true);
+    addHistory({ type: 'qty', description: `Изменено кол-во упаковок` });
+  }, []);
+
+  const handleReplace = useCallback((item: EditableItem, alt: { id: string; name: string; price: number; isAvailable: boolean; category: { name: string }; manufacturer: { name: string }; priceDifference: number; priceDifferencePct: number; cheaper: boolean }) => {
+    setEditableGroups((prev) =>
+      prev.map((g) => ({
+        ...g,
+        items: g.items.map((i) =>
+          i._id !== item._id ? i : {
+            ...i,
+            materialId: alt.id,
+            unitPrice: alt.price,
+            totalPrice: Math.round(alt.price * i.packageCount),
+            material: {
+              ...i.material,
+              id: alt.id,
+              name: alt.name,
+              category: alt.category,
+              manufacturer: alt.manufacturer,
+            },
+          },
+        ),
+      })),
+    );
+    addHistory({ type: 'replace', description: `Заменён: ${item.material.name} → ${alt.name}` });
+    setReplaceTarget(null);
+    setIsDirty(true);
+  }, []);
+
+  const handleAddMaterial = useCallback((groupIndex: number, mat: { id: string; name: string; price: number; unit: string; packageUnit: string; packageQuantity: number; category: { name: string }; manufacturer: { name: string } }, pkgCount: number) => {
+    const newItem: EditableItem = {
+      _id: mkId(),
+      materialId: mat.id,
+      quantity: mat.packageQuantity * pkgCount,
+      packageCount: pkgCount,
+      unitPrice: mat.price,
+      totalPrice: Math.round(mat.price * pkgCount),
+      material: {
+        id: mat.id,
+        name: mat.name,
+        unit: mat.unit,
+        packageUnit: mat.packageUnit,
+        packageQuantity: mat.packageQuantity,
+        category: mat.category,
+        manufacturer: mat.manufacturer,
+      },
+    };
+    setEditableGroups((prev) =>
+      prev.map((g, gi) => gi !== groupIndex ? g : { ...g, items: [...g.items, newItem] }),
+    );
+    addHistory({ type: 'add', description: `Добавлен: ${mat.name}` });
+    setAddTarget(null);
+    setIsDirty(true);
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    if (!result?.calculationId) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/calculations/${result.calculationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groups: editableGroups.map((g) => ({
+            surfaceLabel: g.label,
+            items: g.items.map((i) => ({
+              materialId: i.materialId,
+              quantity: i.quantity,
+              packageCount: i.packageCount,
+              unitPrice: i.unitPrice,
+              totalPrice: i.totalPrice,
+            })),
+          })),
+        }),
+      });
+      if (res.ok) {
+        setIsDirty(false);
+        setSavedOk(true);
+        setTimeout(() => setSavedOk(false), 3000);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }, [result, editableGroups]);
 
   if (authLoading || isLoading) {
     return (
@@ -330,43 +281,68 @@ export default function ResultPage() {
 
   const groups: SurfaceGroup[] = result.surfaceGroups ?? [];
 
-  function handleDownload() {
+  async function handleDownload() {
     if (!result) return;
-    const totalCostVal = parseFloat(result.totalPrice.toString());
     const budgetVal2 = parseFloat(result.budget.toString());
+
+    // Сохраняем смету в БД
+    const allItems = editableGroups.flatMap((g) =>
+      g.items.map((i) => ({
+        materialId: i.materialId,
+        quantity: i.quantity,
+        packageCount: i.packageCount,
+        price: i.unitPrice,
+        total: i.totalPrice,
+      })),
+    );
+    const currentTotal = editableGroups.reduce((s, g) => s + g.items.reduce((gs, i) => gs + i.totalPrice, 0), 0);
+    if (allItems.length > 0 && result.calculationId) {
+      fetch('/api/estimates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          calculationId: result.calculationId,
+          totalPrice: Math.round(currentTotal),
+          items: allItems,
+        }),
+      }).catch(() => {});
+    }
     const date = new Date().toLocaleDateString('ru-RU');
+    const currentItemCount = editableGroups.reduce((s, g) => s + g.items.length, 0);
 
-    const groupsHtml = (result.surfaceGroups ?? []).map((group) => {
-      const rows = group.items.map((item) => `
-        <tr>
-          <td>${item.material.name}</td>
-          <td>${item.material.manufacturer.name}</td>
-          <td>${item.material.category.name}</td>
-          <td style="text-align:right">${Number(item.quantity) % 1 !== 0 ? Number(item.quantity).toFixed(2) : item.quantity} ${item.material.unit}</td>
-          <td style="text-align:right">${item.packageCount} ${item.material.packageUnit}</td>
-          <td style="text-align:right">${Number(item.unitPrice).toLocaleString('ru-RU')} сом</td>
-          <td style="text-align:right"><strong>${Math.round(Number(item.totalPrice)).toLocaleString('ru-RU')} сом</strong></td>
-        </tr>`).join('');
-      const subtotal = group.items.reduce((s, i) => s + Number(i.totalPrice), 0);
-      return `
-        <h3 style="color:#1e40af;margin:24px 0 8px">${group.label}${result.isFullRoom ? ` — ${Number(group.surfaceArea).toFixed(1)} м²` : ''}</h3>
-        <table>
-          <thead><tr>
-            <th>Материал</th><th>Производитель</th><th>Категория</th>
-            <th style="text-align:right">Кол-во</th><th style="text-align:right">Упаковок</th>
-            <th style="text-align:right">Цена/уп.</th><th style="text-align:right">Итого</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-          <tfoot><tr>
-            <td colspan="6"><strong>Итого — ${group.label}</strong></td>
-            <td style="text-align:right"><strong style="color:#1d4ed8">${Math.round(subtotal).toLocaleString('ru-RU')} сом</strong></td>
-          </tr></tfoot>
-        </table>`;
-    }).join('');
+    const groupsHtml = editableGroups
+      .filter((group) => group.items.length > 0)
+      .map((group) => {
+        const rows = group.items.map((item) => `
+          <tr>
+            <td>${item.material.name}</td>
+            <td>${item.material.manufacturer.name}</td>
+            <td>${item.material.category.name}</td>
+            <td style="text-align:right">${Number(item.quantity) % 1 !== 0 ? Number(item.quantity).toFixed(2) : item.quantity} ${item.material.unit}</td>
+            <td style="text-align:right">${item.packageCount} ${item.material.packageUnit}</td>
+            <td style="text-align:right">${Number(item.unitPrice).toLocaleString('ru-RU')} сом</td>
+            <td style="text-align:right"><strong>${Math.round(Number(item.totalPrice)).toLocaleString('ru-RU')} сом</strong></td>
+          </tr>`).join('');
+        const subtotal = group.items.reduce((s, i) => s + Number(i.totalPrice), 0);
+        return `
+          <h3 style="color:#1e40af;margin:24px 0 8px">${group.label}${result.isFullRoom ? ` — ${Number(group.surfaceArea).toFixed(1)} м²` : ''}</h3>
+          <table>
+            <thead><tr>
+              <th>Материал</th><th>Производитель</th><th>Категория</th>
+              <th style="text-align:right">Кол-во</th><th style="text-align:right">Упаковок</th>
+              <th style="text-align:right">Цена/уп.</th><th style="text-align:right">Итого</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr>
+              <td colspan="6"><strong>Итого — ${group.label}</strong></td>
+              <td style="text-align:right"><strong style="color:#1d4ed8">${Math.round(subtotal).toLocaleString('ru-RU')} сом</strong></td>
+            </tr></tfoot>
+          </table>`;
+      }).join('');
 
-    const overStr = totalCostVal > budgetVal2
-      ? `<p style="color:#dc2626">⚠ Превышение бюджета на ${Math.round(totalCostVal - budgetVal2).toLocaleString('ru-RU')} сом</p>`
-      : `<p style="color:#16a34a">✓ Экономия: ${Math.round(budgetVal2 - totalCostVal).toLocaleString('ru-RU')} сом</p>`;
+    const overStr = currentTotal > budgetVal2
+      ? `<p style="color:#dc2626">⚠ Превышение бюджета на ${Math.round(currentTotal - budgetVal2).toLocaleString('ru-RU')} сом</p>`
+      : `<p style="color:#16a34a">✓ Экономия: ${Math.round(budgetVal2 - currentTotal).toLocaleString('ru-RU')} сом</p>`;
 
     const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
       <title>Смета — ${result.projectName}</title>
@@ -375,7 +351,6 @@ export default function ResultPage() {
         h1 { color: #1e3a8a; margin-bottom: 4px; }
         .meta { color: #555; margin-bottom: 24px; font-size: 12px; }
         .stats { display: flex; gap: 24px; background: #f0f4ff; padding: 16px 20px; border-radius: 8px; margin-bottom: 24px; }
-        .stat { }
         .stat-val { font-size: 18px; font-weight: bold; color: #1d4ed8; }
         .stat-lbl { font-size: 11px; color: #666; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
@@ -389,16 +364,16 @@ export default function ResultPage() {
       <h1>Смета: ${result.projectName}</h1>
       <p class="meta">Дата: ${date} &nbsp;|&nbsp; ${result.roomType} &nbsp;|&nbsp; ${result.surfaceType} &nbsp;|&nbsp; ${result.repairLevel}</p>
       <div class="stats">
-        <div class="stat"><div class="stat-val">${Math.round(totalCostVal).toLocaleString('ru-RU')} сом</div><div class="stat-lbl">Итого стоимость</div></div>
+        <div class="stat"><div class="stat-val">${Math.round(currentTotal).toLocaleString('ru-RU')} сом</div><div class="stat-lbl">Итого стоимость</div></div>
         <div class="stat"><div class="stat-val">${Math.round(budgetVal2).toLocaleString('ru-RU')} сом</div><div class="stat-lbl">Бюджет</div></div>
         <div class="stat"><div class="stat-val">${result.area.toFixed(1)} м²</div><div class="stat-lbl">Площадь</div></div>
-        <div class="stat"><div class="stat-val">${groups.reduce((s, g) => s + g.items.length, 0)}</div><div class="stat-lbl">Позиций</div></div>
+        <div class="stat"><div class="stat-val">${currentItemCount}</div><div class="stat-lbl">Позиций</div></div>
       </div>
       ${overStr}
       ${groupsHtml}
       ${
-        result.isFullRoom && groups.length > 1
-          ? `<div class="total-row"><span>Общий итог (все поверхности)</span><strong>${Math.round(totalCostVal).toLocaleString('ru-RU')} сом</strong></div>`
+        result.isFullRoom && editableGroups.filter((g) => g.items.length > 0).length > 1
+          ? `<div class="total-row"><span>Общий итог (все поверхности)</span><strong>${Math.round(currentTotal).toLocaleString('ru-RU')} сом</strong></div>`
           : ''
       }
     </body></html>`;
@@ -410,13 +385,11 @@ export default function ResultPage() {
     win.focus();
     setTimeout(() => win.print(), 400);
   }
-  const totalCost = parseFloat(result.totalPrice.toString());
   const budget = parseFloat(result.budget.toString());
-  const isBudgetOk = result.fitsBudget;
-  const savings = budget - totalCost;
+  const liveFitsBudget = liveTotal <= budget || budget === 0;
+  const liveSavings = budget - liveTotal;
   const area = parseFloat(result.area.toString()).toFixed(1);
-  const totalItems = groups.reduce((s, g) => s + g.items.length, 0);
-  const allCategories = new Set(groups.flatMap((g) => g.items.map((i) => i.material.category.name)));
+  const allCategories = new Set(editableGroups.flatMap((g) => g.items.map((i) => i.material.category.name)));
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-violet-50/20">
@@ -433,6 +406,29 @@ export default function ResultPage() {
             <span className="text-gray-900 font-medium">{t('result.title')}</span>
           </div>
           <div className="flex items-center gap-2">
+            {savedOk && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                <BadgeCheck size={13} /> Сохранено
+              </span>
+            )}
+            {isDirty && !savedOk && (
+              <span className="text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg font-medium">Есть несохранённые изменения</span>
+            )}
+            <button
+              onClick={() => setShowHistory(true)}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
+            >
+              <Clock size={14} />
+              История{history.length > 0 && ` (${history.length})`}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || isSaving}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Save size={14} />
+              {isSaving ? 'Сохранение...' : 'Сохранить'}
+            </button>
             <button
               onClick={() => router.push('/calculations/new')}
               className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
@@ -477,10 +473,10 @@ export default function ResultPage() {
             {[
               {
                 label: t('result.totalCost'),
-                value: `${Math.round(totalCost).toLocaleString('ru-RU')} сом`,
+                value: `${Math.round(liveTotal).toLocaleString('ru-RU')} сом`,
                 icon: DollarSign,
-                color: isBudgetOk ? 'emerald' : 'red',
-                sub: isBudgetOk ? t('list.fitsBudget') : t('list.overBudget'),
+                color: liveFitsBudget ? 'emerald' : 'red',
+                sub: liveFitsBudget ? t('list.fitsBudget') : t('list.overBudget'),
               },
               {
                 label: t('result.floorArea'),
@@ -491,16 +487,16 @@ export default function ResultPage() {
               },
               {
                 label: t('result.items'),
-                value: totalItems.toString(),
+                value: liveTotalItems.toString(),
                 icon: Package,
                 color: 'violet',
                 sub: `${allCategories.size} ${t('result.categories')}`,
               },
               {
-                label: isBudgetOk ? t('result.savings') : t('result.overBudget'),
-                value: `${Math.abs(Math.round(savings)).toLocaleString('ru-RU')} сом`,
+                label: liveFitsBudget ? t('result.savings') : t('result.overBudget'),
+                value: `${Math.abs(Math.round(liveSavings)).toLocaleString('ru-RU')} сом`,
                 icon: TrendingDown,
-                color: isBudgetOk ? 'emerald' : 'orange',
+                color: liveFitsBudget ? 'emerald' : 'orange',
                 sub: `${t('result.budget')}: ${Math.round(budget).toLocaleString('ru-RU')} сом`,
               },
             ].map((stat, i) => {
@@ -607,38 +603,62 @@ export default function ResultPage() {
             </div>
           )}
 
-          {/* Surface groups */}
-          {groups.map((group, gi) => (
-            <div key={gi} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={15} className="text-blue-600" />
-                  <h2 className="text-sm font-semibold text-gray-800">
-                    {group.label}
-                    {result.isFullRoom && (
-                      <span className="ml-2 text-xs font-normal text-gray-400">
-                        — {t('result.area')} {Number(group.surfaceArea).toFixed(1)} м²
-                      </span>
-                    )}
-                  </h2>
+          {/* Surface groups — editable */}
+          {editableGroups.map((group, gi) => {
+            const groupTotal = group.items.reduce((s, i) => s + i.totalPrice, 0);
+            const accentColors = [
+              'from-blue-500 to-blue-600',
+              'from-violet-500 to-violet-600',
+              'from-emerald-500 to-emerald-600',
+              'from-amber-500 to-amber-600',
+            ];
+            const accent = accentColors[gi % accentColors.length];
+            return (
+              <div key={gi} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4 hover:shadow-md transition-shadow duration-200">
+                {/* Section header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${accent} flex items-center justify-center flex-shrink-0`}>
+                      <Sparkles size={14} className="text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-gray-900">{group.label}</h2>
+                      {result.isFullRoom && group.surfaceArea > 0 && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          Площадь: {Number(group.surfaceArea).toFixed(1)} м²
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
+                      {group.items.length} поз.
+                    </span>
+                    <div className="text-right">
+                      <p className="text-base font-bold text-gray-900 tabular-nums">
+                        {Math.round(groupTotal).toLocaleString('ru-RU')}
+                        <span className="text-xs font-normal text-gray-400 ml-1">сом</span>
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-400">{group.items.length} {t('result.positions')}</span>
-                  <span className="text-sm font-bold text-gray-900">
-                    {Math.round(group.subtotal).toLocaleString('ru-RU')} сом
-                  </span>
-                </div>
+                <MaterialsEditorTable
+                  group={group}
+                  groupIndex={gi}
+                  budget={budget}
+                  isFullRoom={result.isFullRoom}
+                  onDelete={handleDelete}
+                  onReplace={setReplaceTarget}
+                  onQtyChange={handleQtyChange}
+                  onAddMaterial={(idx) => setAddTarget({ groupIndex: idx, groupLabel: group.label })}
+                  t={t}
+                />
               </div>
-              <MaterialsTable
-                items={group.items}
-                totalLabel={`${t('result.total')} — ${group.label}`}
-                t={t}
-              />
-            </div>
-          ))}
+            );
+          })}
 
           {/* Grand total for full_room */}
-          {result.isFullRoom && groups.length > 1 && (
+          {result.isFullRoom && editableGroups.length > 1 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-violet-600 rounded-xl flex items-center justify-center">
@@ -650,7 +670,7 @@ export default function ResultPage() {
                 </div>
               </div>
               <span className="text-2xl font-bold text-blue-700">
-                {Math.round(totalCost).toLocaleString('ru-RU')} сом
+                {Math.round(liveTotal).toLocaleString('ru-RU')} сом
               </span>
             </div>
           )}
@@ -722,27 +742,27 @@ export default function ResultPage() {
           <SmartRecommendationsBlock recs={result.smartRecommendations ?? []} t={t} />
 
           {/* Budget status */}
-          <div className={`rounded-2xl p-5 flex items-center gap-4 ${isBudgetOk ? 'bg-emerald-50 border border-emerald-100' : 'bg-orange-50 border border-orange-100'}`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isBudgetOk ? 'bg-emerald-100' : 'bg-orange-100'}`}>
-              {isBudgetOk
+          <div className={`rounded-2xl p-5 flex items-center gap-4 ${liveFitsBudget ? 'bg-emerald-50 border border-emerald-100' : 'bg-orange-50 border border-orange-100'}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${liveFitsBudget ? 'bg-emerald-100' : 'bg-orange-100'}`}>
+              {liveFitsBudget
                 ? <CheckCircle size={20} className="text-emerald-600" />
                 : <Calculator size={20} className="text-orange-600" />
               }
             </div>
             <div className="flex-1">
-              <p className={`text-sm font-semibold ${isBudgetOk ? 'text-emerald-800' : 'text-orange-800'}`}>
-                {isBudgetOk
-                  ? t('result.budgetOkMsg', { amount: Math.abs(Math.round(savings)).toLocaleString('ru-RU') })
-                  : t('result.budgetOverMsg', { amount: Math.abs(Math.round(savings)).toLocaleString('ru-RU') })
+              <p className={`text-sm font-semibold ${liveFitsBudget ? 'text-emerald-800' : 'text-orange-800'}`}>
+                {liveFitsBudget
+                  ? t('result.budgetOkMsg', { amount: Math.abs(Math.round(liveSavings)).toLocaleString('ru-RU') })
+                  : t('result.budgetOverMsg', { amount: Math.abs(Math.round(liveSavings)).toLocaleString('ru-RU') })
                 }
               </p>
-              <p className={`text-xs mt-0.5 ${isBudgetOk ? 'text-emerald-600' : 'text-orange-600'}`}>
-                {t('result.budget')}: {Math.round(budget).toLocaleString('ru-RU')} сом · {t('result.title')}: {Math.round(totalCost).toLocaleString('ru-RU')} сом
+              <p className={`text-xs mt-0.5 ${liveFitsBudget ? 'text-emerald-600' : 'text-orange-600'}`}>
+                {t('result.budget')}: {Math.round(budget).toLocaleString('ru-RU')} сом · {t('result.title')}: {Math.round(liveTotal).toLocaleString('ru-RU')} сом
               </p>
             </div>
             <button
               onClick={() => router.push('/calculations/new')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all flex-shrink-0 ${isBudgetOk ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-orange-600 text-white hover:bg-orange-700'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all flex-shrink-0 ${liveFitsBudget ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-orange-600 text-white hover:bg-orange-700'}`}
             >
               <RotateCcw size={14} />
               {t('result.recalc')}
@@ -750,6 +770,26 @@ export default function ResultPage() {
           </div>
         </main>
       </div>
+
+      {/* Overlays */}
+      {replaceTarget && (
+        <ReplacePanel
+          item={replaceTarget}
+          budget={budget}
+          onReplace={handleReplace}
+          onClose={() => setReplaceTarget(null)}
+        />
+      )}
+      {addTarget && (
+        <AddMaterialModal
+          groupLabel={addTarget.groupLabel}
+          onAdd={(mat, pkgs) => handleAddMaterial(addTarget.groupIndex, mat, pkgs)}
+          onClose={() => setAddTarget(null)}
+        />
+      )}
+      {showHistory && (
+        <HistoryPanel entries={history} onClose={() => setShowHistory(false)} onRestore={handleRestore} />
+      )}
     </div>
   );
 }

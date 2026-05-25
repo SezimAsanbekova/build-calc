@@ -1,6 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+
+async function getUserId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth-token')?.value;
+  if (token) {
+    const payload = await verifyToken(token);
+    if (payload?.userId) return payload.userId;
+  }
+  const session = await auth();
+  return session?.user?.id ?? null;
+}
+
+export async function GET() {
+  try {
+    const userId = await getUserId();
+    if (!userId) return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 });
+
+    const estimates = await prisma.estimate.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        calculation: {
+          select: {
+            id: true,
+            projectName: true,
+            roomType: true,
+            surfaceType: true,
+            repairLevel: true,
+            area: true,
+          },
+        },
+        items: { select: { id: true } },
+      },
+    });
+
+    return NextResponse.json({ estimates });
+  } catch (error) {
+    console.error('Estimates GET error:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

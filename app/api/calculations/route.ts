@@ -230,10 +230,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      projectName, roomType, surfaceType, length, width, height, repairLevel, budget,
+      projectName, roomType: rawRoomType, surfaceType, length, width, height, repairLevel, budget,
       windowCount = '0', windowWidth = '1.4', windowHeight = '1.2',
       doorCount = '1', doorWidth = '0.9', doorHeight = '2.1',
     } = body;
+
+    let roomType: string = rawRoomType ?? '';
+    if (roomType.startsWith('custom:')) {
+      const customId = roomType.slice(7);
+      const customRoom = await prisma.customRoom.findUnique({ where: { id: customId } });
+      roomType = customRoom?.name ?? 'custom';
+    }
 
     const isFullRoom = surfaceType === 'full_room';
     const needsHeight = isFullRoom || surfaceType === 'walls';
@@ -404,6 +411,8 @@ export async function POST(request: NextRequest) {
     const uniqueCategories = [...new Set(allItems.map((i) => i.material.category.name))];
     const uniqueNames = [...new Set(allItems.map((i) => i.material.name))];
 
+    const langCookie = request.cookies.get('lang')?.value ?? 'ru';
+
     const smartRecommendations = generateRecommendations({
       roomType,
       surfaceType,
@@ -414,6 +423,7 @@ export async function POST(request: NextRequest) {
       categories: uniqueCategories,
       materialNames: uniqueNames,
       budgetOptimizations,
+      lang: langCookie,
     });
 
     return NextResponse.json({

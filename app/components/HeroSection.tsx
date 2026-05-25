@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Rocket, Target, Zap } from 'lucide-react';
 import { useTranslation } from '@/app/i18n/useTranslation';
 
@@ -44,12 +45,12 @@ export default function HeroSection() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <button className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-2xl transition-all duration-300 hover:scale-105 text-base">
+              <Link href="/register" className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-2xl transition-all duration-300 hover:scale-105 text-base text-center">
                 {t('hero.startCalc')}
-              </button>
-              <button className="px-8 py-4 bg-white text-gray-900 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 border border-gray-200 text-base">
+              </Link>
+              <Link href="/register" className="px-8 py-4 bg-white text-gray-900 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 border border-gray-200 text-base text-center">
                 {t('hero.learnMore')}
-              </button>
+              </Link>
             </div>
 
             {/* Stats */}
