@@ -12,7 +12,8 @@ export interface MaterialFormData {
   categoryId: string;
   manufacturerId: string;
   repairLevel: 'econom' | 'standard' | 'premium';
-  surfaceType: 'wall' | 'floor' | 'ceiling';
+  surfaceType?: 'wall' | 'floor' | 'ceiling';
+  sectionId: string;
   price: string;
   consumptionPerM2: string;
   unit: string;
@@ -23,6 +24,12 @@ export interface MaterialFormData {
   imageUrl: string;
   isAvailable: boolean;
   isActive: boolean;
+}
+
+interface SectionOption {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 interface OptionItem {
@@ -42,7 +49,7 @@ const emptyForm: MaterialFormData = {
   categoryId: '',
   manufacturerId: '',
   repairLevel: 'standard',
-  surfaceType: 'wall',
+  sectionId: '',
   price: '',
   consumptionPerM2: '',
   unit: 'м²',
@@ -61,16 +68,11 @@ const repairLevels = [
   { value: 'premium', label: 'Премиум' },
 ];
 
-const surfaceTypes = [
-  { value: 'wall', label: 'Стена' },
-  { value: 'floor', label: 'Пол' },
-  { value: 'ceiling', label: 'Потолок' },
-];
-
 export default function MaterialFormModal({ open, initial, onClose, onSaved }: Props) {
   const [form, setForm] = useState<MaterialFormData>(emptyForm);
   const [categories, setCategories] = useState<OptionItem[]>([]);
   const [manufacturers, setManufacturers] = useState<OptionItem[]>([]);
+  const [sections, setSections] = useState<SectionOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -97,9 +99,10 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
   const fetchOptions = async () => {
     setLoadingOptions(true);
     try {
-      const [catRes, mfRes] = await Promise.all([
+      const [catRes, mfRes, secRes] = await Promise.all([
         fetch('/api/admin/categories'),
         fetch('/api/admin/manufacturers'),
+        fetch('/api/sections'),
       ]);
       if (catRes.ok) {
         const data = await catRes.json();
@@ -108,6 +111,10 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
       if (mfRes.ok) {
         const data = await mfRes.json();
         setManufacturers(data.manufacturers);
+      }
+      if (secRes.ok) {
+        const data = await secRes.json();
+        setSections(data.sections ?? []);
       }
     } finally {
       setLoadingOptions(false);
@@ -454,7 +461,7 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
             </div>
           </div>
 
-          {/* Repair level + Surface type */}
+          {/* Repair level + Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className={labelCls}>Уровень ремонта *</label>
@@ -465,11 +472,13 @@ export default function MaterialFormModal({ open, initial, onClose, onSaved }: P
               />
             </div>
             <div>
-              <label className={labelCls}>Тип поверхности *</label>
+              <label className={labelCls}>Секция ремонта *</label>
               <AdminSelect
-                value={form.surfaceType}
-                onChange={(v) => setForm({ ...form, surfaceType: v as MaterialFormData['surfaceType'] })}
-                options={surfaceTypes}
+                value={form.sectionId}
+                onChange={(v) => setForm({ ...form, sectionId: v })}
+                options={sections.map((s) => ({ value: s.id, label: s.name }))}
+                placeholder={loadingOptions ? 'Загрузка...' : '— выберите секцию —'}
+                disabled={loadingOptions}
               />
             </div>
           </div>

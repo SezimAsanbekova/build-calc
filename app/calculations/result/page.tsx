@@ -12,10 +12,10 @@ import Sidebar from '../../components/Sidebar';
 import { useTranslation } from '@/app/i18n/useTranslation';
 import {
   SmartRecommendationsBlock, ReplacePanel, AddMaterialModal, MaterialsEditorTable,
-  HistoryPanel,
+  HistoryPanel, AiAlternativesModal,
 } from './_components';
 import type {
-  EditableItem, EditableGroup, HistoryEntry, SmartRecommendation,
+  EditableItem, EditableGroup, HistoryEntry, SmartRecommendation, AlternativeMaterial,
 } from './_components';
 
 interface SurfaceGroup {
@@ -37,7 +37,9 @@ interface BudgetAnalysis {
 
 interface BudgetOpt {
   currentMaterial: string;
+  currentMaterialId?: string;
   alternativeMaterial: string;
+  alternativeMaterialId?: string;
   alternativeManufacturer: string;
   currentUnitPrice: number;
   alternativeUnitPrice: number;
@@ -95,8 +97,10 @@ export default function ResultPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [replaceTarget, setReplaceTarget] = useState<EditableItem | null>(null);
+  const [aiTarget, setAiTarget] = useState<EditableItem | null>(null);
   const [addTarget, setAddTarget] = useState<{ groupIndex: number; groupLabel: string } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [applyingAll, setApplyingAll] = useState(false);
 
   useEffect(() => {
     if (!isReady) return;
@@ -205,6 +209,83 @@ export default function ResultPage() {
     setReplaceTarget(null);
     setIsDirty(true);
   }, []);
+
+  const handleAiReplace = useCallback((item: EditableItem, alt: AlternativeMaterial, newVariantItemId?: string) => {
+    setEditableGroups((prev) =>
+      prev.map((g) => ({
+        ...g,
+        items: g.items.map((i) =>
+          i._id !== item._id ? i : {
+            ...i,
+            materialId: alt.id,
+            variantItemId: newVariantItemId ?? i.variantItemId,
+            unitPrice: alt.price,
+            totalPrice: Math.round(alt.price * i.packageCount),
+            material: {
+              ...i.material,
+              id: alt.id,
+              name: alt.name,
+              category: alt.category,
+              manufacturer: alt.manufacturer,
+            },
+          },
+        ),
+      })),
+    );
+    addHistory({ type: 'replace', description: `AI-замена: ${item.material.name} → ${alt.name}` });
+    setAiTarget(null);
+    setIsDirty(true);
+  }, []);
+
+  const handleApplyAllAi = useCallback(async () => {
+    if (!result?.budgetOptimizations) return;
+    // Берём все оптимизации — с ID для DB-обновления, без ID для client-side
+    const opts = result.budgetOptimizations;
+    if (!opts.length) return;
+    setApplyingAll(true);
+    try {
+      const allItems = editableGroups.flatMap((g) => g.items);
+      for (const opt of opts) {
+        const item = allItems.find((i) => i.materialId === opt.currentMaterialId);
+        if (!item) continue;
+        const alt: AlternativeMaterial = {
+          id: opt.alternativeMaterialId ?? '',
+          name: opt.alternativeMaterial,
+          price: opt.alternativeUnitPrice,
+          isAvailable: true,
+          category: item.material.category,
+          manufacturer: { name: opt.alternativeManufacturer },
+          priceDifference: opt.alternativeUnitPrice - opt.currentUnitPrice,
+          priceDifferencePct: ((opt.alternativeUnitPrice - opt.currentUnitPrice) / opt.currentUnitPrice) * 100,
+          cheaper: opt.alternativeUnitPrice < opt.currentUnitPrice,
+          reason: opt.reason,
+        };
+        if (!alt.id) {
+          // Нет ID альтернативы — только client-side обновление
+          handleAiReplace(item, alt);
+          continue;
+        }
+        let newVariantItemId: string | undefined;
+        if (item.variantItemId) {
+          try {
+            const res = await fetch('/api/calculations/replace-material', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ variantItemId: item.variantItemId, newMaterialId: alt.id }),
+            });
+            if (res.ok) {
+              const data = await res.json().catch(() => ({}));
+              newVariantItemId = data?.newItem?.variantItemId;
+            }
+            // Если API вернул ошибку — обновляем UI без DB (client-side only)
+          } catch { /* network error — обновляем UI без DB */ }
+        }
+        handleAiReplace(item, alt, newVariantItemId);
+      }
+    } finally {
+      setApplyingAll(false);
+    }
+  }, [result, editableGroups, handleAiReplace]);
 
   const handleAddMaterial = useCallback((groupIndex: number, mat: { id: string; name: string; price: number; unit: string; packageUnit: string; packageQuantity: number; category: { name: string }; manufacturer: { name: string } }, pkgCount: number) => {
     const newItem: EditableItem = {
@@ -649,6 +730,7 @@ export default function ResultPage() {
                   isFullRoom={result.isFullRoom}
                   onDelete={handleDelete}
                   onReplace={setReplaceTarget}
+                  onAiAlternatives={setAiTarget}
                   onQtyChange={handleQtyChange}
                   onAddMaterial={(idx) => setAddTarget({ groupIndex: idx, groupLabel: group.label })}
                   t={t}
@@ -675,40 +757,59 @@ export default function ResultPage() {
             </div>
           )}
 
-          {/* Budget optimizations */}
-          {result.budgetOptimizations && result.budgetOptimizations.length > 0 && (
-            <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 mb-5">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingDown size={16} className="text-orange-600" />
-                <h3 className="text-sm font-semibold text-orange-800">{t('result.budgetOpt')}</h3>
-                <span className="text-xs text-orange-500 ml-1">{t('result.budgetOptSub')}</span>
+          {/* AI Budget exceeded block */}
+          {!liveFitsBudget && result.budgetOptimizations && result.budgetOptimizations.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-5 mb-5">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle size={18} className="text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-red-800">⚠ Бюджет превышен</h3>
+                  <div className="mt-1 space-y-0.5 text-xs text-red-700">
+                    <p>Ваш бюджет: <span className="font-semibold">{Math.round(budget).toLocaleString('ru-RU')} сом</span></p>
+                    <p>Стоимость ремонта: <span className="font-semibold">{Math.round(liveTotal).toLocaleString('ru-RU')} сом</span></p>
+                    <p>Превышение: <span className="font-bold text-red-800">{Math.round(liveTotal - budget).toLocaleString('ru-RU')} сом</span></p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2.5">
+              <p className="text-xs text-red-700 mb-3">AI предлагает альтернативные материалы для снижения стоимости:</p>
+              <div className="space-y-2 mb-4">
                 {result.budgetOptimizations.map((opt, i) => (
-                  <div key={i} className="bg-white rounded-xl p-3.5 border border-orange-100">
+                  <div key={i} className="bg-white rounded-xl p-3 border border-red-100">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                           <span className="text-xs text-gray-400 line-through">{opt.currentMaterial}</span>
                           <span className="text-gray-400 text-xs">→</span>
                           <span className="text-sm font-semibold text-gray-900">{opt.alternativeMaterial}</span>
                         </div>
-                        <p className="text-xs text-gray-400">{opt.alternativeManufacturer}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-[11px] text-gray-400">{opt.alternativeManufacturer}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
                           {opt.currentUnitPrice.toLocaleString('ru-RU')} → {opt.alternativeUnitPrice.toLocaleString('ru-RU')} сом/уп.
                         </p>
-                        {opt.reason && <p className="text-xs text-gray-400 mt-0.5 italic">{opt.reason}</p>}
+                        {opt.reason && <p className="text-[11px] text-gray-400 mt-0.5 italic">{opt.reason}</p>}
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <span className="text-sm font-bold text-emerald-600">
-                          −{opt.savings.toLocaleString('ru-RU')} сом
-                        </span>
-                        <p className="text-xs text-emerald-500">−{opt.savingsPercent}%</p>
+                        <span className="text-sm font-bold text-emerald-600">−{opt.savings.toLocaleString('ru-RU')} сом</span>
+                        <p className="text-[10px] text-emerald-500">−{opt.savingsPercent}%</p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
+              <button
+                type="button"
+                onClick={handleApplyAllAi}
+                disabled={applyingAll}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {applyingAll ? (
+                  <><Sparkles size={15} className="animate-pulse" /> Применяем...</>
+                ) : (
+                  <><Sparkles size={15} /> Применить все AI-замены</>
+                )}
+              </button>
             </div>
           )}
 
@@ -778,6 +879,14 @@ export default function ResultPage() {
           budget={budget}
           onReplace={handleReplace}
           onClose={() => setReplaceTarget(null)}
+        />
+      )}
+      {aiTarget && (
+        <AiAlternativesModal
+          item={aiTarget}
+          budget={budget}
+          onReplace={handleAiReplace}
+          onClose={() => setAiTarget(null)}
         />
       )}
       {addTarget && (

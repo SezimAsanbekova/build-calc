@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   AlertTriangle, ShieldCheck, Info, PiggyBank, RefreshCw, Trash2, Plus, Minus,
-  Search, X, Check, Loader2, Brain,
+  Search, X, Check, Loader2, Brain, Star, TrendingDown,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ResultItem {
   materialId: string;
+  variantItemId?: string | null;
   quantity: number;
   packageCount: number;
   unitPrice: number;
@@ -116,7 +117,7 @@ export function SmartRecommendationsBlock({ recs, t }: { recs: SmartRecommendati
 
 // ─── ReplacePanel ─────────────────────────────────────────────────────────────
 
-interface AlternativeMaterial {
+export interface AlternativeMaterial {
   id: string;
   name: string;
   price: number;
@@ -126,12 +127,28 @@ interface AlternativeMaterial {
   priceDifference: number;
   priceDifferencePct: number;
   cheaper: boolean;
+  compatibilityScore?: number;
+  cheaperBy?: number | null;
+  reason?: string | null;
 }
 
 interface ReplacePanelProps {
   item: EditableItem;
   budget: number;
   onReplace: (item: EditableItem, alt: AlternativeMaterial) => void;
+  onClose: () => void;
+}
+
+export interface AiConflict {
+  material1: string;
+  material2: string;
+  reason: string | null;
+}
+
+export interface AiAlternativesModalProps {
+  item: EditableItem;
+  budget: number;
+  onReplace: (item: EditableItem, alt: AlternativeMaterial, newVariantItemId?: string) => void;
   onClose: () => void;
 }
 
@@ -225,6 +242,200 @@ export function ReplacePanel({ item, budget, onReplace, onClose }: ReplacePanelP
                     <div className="mt-2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Check size={11} className="text-blue-600" />
                       <span className="text-xs text-blue-600 font-medium">Выбрать</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AiAlternativesModal ──────────────────────────────────────────
+
+export function AiAlternativesModal({ item, budget, onReplace, onClose }: AiAlternativesModalProps) {
+  const [alternatives, setAlternatives] = useState<AlternativeMaterial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [replacing, setReplacing] = useState<string | null>(null);
+  const [conflicts, setConflicts] = useState<AiConflict[]>([]);
+  const [conflictFor, setConflictFor] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setConflicts([]);
+    fetch('/api/alternatives/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ materialId: item.materialId, budget }),
+    })
+      .then((r) => r.json())
+      .then((data) => setAlternatives(data.alternatives ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [item.materialId, budget]);
+
+  const handleSelect = useCallback(async (alt: AlternativeMaterial) => {
+    setConflicts([]);
+    setConflictFor(null);
+
+    if (item.variantItemId) {
+      setReplacing(alt.id);
+      try {
+        const res = await fetch('/api/calculations/replace-material', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variantItemId: item.variantItemId, newMaterialId: alt.id }),
+        });
+        let data: Record<string, unknown> = {};
+        try { data = await res.json(); } catch { /* non-JSON response */ }
+
+        if (!res.ok) {
+          if (data.incompatible) {
+            setConflicts((data.conflicts as AiConflict[]) ?? []);
+            setConflictFor(alt.name);
+            return; // \u0411\u043b\u043e\u043a\u0438\u0440\u0443\u0435\u043c: \u043d\u0435\u0441\u043e\u0432\u043c\u0435\u0441\u0442\u0438\u043c\u044b\u0435 \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u044b
+          }
+          if (data.incompatibleAttributes) {
+            setConflicts([{ material1: item.material.name, material2: alt.name, reason: data.error as string }]);
+            setConflictFor(alt.name);
+            return; // \u0411\u043b\u043e\u043a\u0438\u0440\u0443\u0435\u043c: \u043d\u0435\u0441\u043e\u0432\u043c\u0435\u0441\u0442\u0438\u043c\u044b\u0435 \u0430\u0442\u0440\u0438\u0431\u0443\u0442\u044b
+          }
+          // \u0414\u0440\u0443\u0433\u0438\u0435 \u043e\u0448\u0438\u0431\u043a\u0438 (500, auth) \u2014 \u0434\u0435\u043b\u0430\u0435\u043c client-side \u0437\u0430\u043c\u0435\u043d\u0443 \u0431\u0435\u0437 DB
+          onReplace(item, alt);
+          return;
+        }
+        onReplace(item, alt, data.newItem ? (data.newItem as Record<string, string>).variantItemId : undefined);
+      } finally {
+        setReplacing(null);
+      }
+    } else {
+      onReplace(item, alt);
+    }
+  }, [item, onReplace]);
+
+  const totalSavings = alternatives
+    .filter((a) => a.cheaper && a.isAvailable)
+    .reduce((max, a) => Math.abs(a.priceDifference) * item.packageCount > max ? Math.abs(a.priceDifference) * item.packageCount : max, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white w-full max-w-lg max-h-[88vh] sm:rounded-2xl shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+          <div className="flex-1 min-w-0 pr-3">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 bg-gradient-to-br from-blue-600 to-violet-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Brain size={13} className="text-white" />
+              </div>
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">AI-альтернативы</p>
+            </div>
+            <h3 className="text-sm font-semibold text-gray-900 leading-tight">{item.material.name}</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {item.material.manufacturer.name} · {Number(item.unitPrice).toLocaleString('ru-RU')} сом/уп.
+            </p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center flex-shrink-0">
+            <X size={16} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Budget savings banner */}
+        {totalSavings > 0 && (
+          <div className="mx-4 mt-3 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-2">
+            <TrendingDown size={14} className="text-emerald-600 flex-shrink-0" />
+            <p className="text-xs font-semibold text-emerald-700">
+              Макс. экономия: −{Math.round(totalSavings).toLocaleString('ru-RU')} сом
+            </p>
+          </div>
+        )}
+
+        {/* Conflict warning */}
+        {conflicts.length > 0 && (
+          <div className="mx-4 mt-3 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+            <p className="text-xs font-semibold text-red-700 mb-1">⚠ Несовместимые материалы ({conflictFor})</p>
+            {conflicts.map((c, i) => (
+              <p key={i} className="text-[11px] text-red-600">
+                {c.material1} ✕ {c.material2}{c.reason ? ` — ${c.reason}` : ''}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-40 gap-3">
+              <Loader2 size={20} className="text-blue-600 animate-spin" />
+              <p className="text-sm text-gray-400">Подбираем AI-альтернативы...</p>
+            </div>
+          ) : alternatives.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 gap-2 text-center">
+              <Brain size={20} className="text-gray-300" />
+              <p className="text-sm text-gray-400">Альтернативы не найдены</p>
+              <p className="text-xs text-gray-300">Добавьте материал вручную</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {alternatives.map((alt) => {
+                const diffSign = alt.priceDifference < 0 ? '−' : '+';
+                const diffColor = alt.priceDifference < 0 ? 'text-emerald-600' : 'text-red-500';
+                const isReplacing = replacing === alt.id;
+                const savingsTotal = alt.cheaper ? Math.abs(alt.priceDifference) * item.packageCount : 0;
+                return (
+                  <button
+                    key={alt.id}
+                    type="button"
+                    onClick={() => handleSelect(alt)}
+                    disabled={!alt.isAvailable || !!replacing}
+                    className="w-full text-left p-3.5 rounded-xl border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 leading-tight">{alt.name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{alt.manufacturer.name}</p>
+                        <p className="text-xs text-gray-600 mt-1 font-medium">
+                          {alt.price.toLocaleString('ru-RU')} сом/уп.
+                        </p>
+                        {alt.reason && (
+                          <p className="text-[11px] text-blue-500 mt-0.5 italic">{alt.reason}</p>
+                        )}
+                        {savingsTotal > 0 && (
+                          <p className="text-[11px] text-emerald-600 mt-0.5 font-medium">
+                            Экономия: −{Math.round(savingsTotal).toLocaleString('ru-RU')} сом
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                        <span className={`text-sm font-semibold ${diffColor}`}>
+                          {diffSign}{Math.abs(Math.round(alt.priceDifference)).toLocaleString('ru-RU')} сом
+                        </span>
+                        {typeof alt.compatibilityScore === 'number' && alt.compatibilityScore > 0 && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-medium">
+                            <Star size={9} fill="currentColor" />
+                            {alt.compatibilityScore}%
+                          </span>
+                        )}
+                        {alt.cheaper && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium">дешевле</span>
+                        )}
+                        {!alt.isAvailable && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">недоступен</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      {isReplacing ? (
+                        <Loader2 size={11} className="text-blue-600 animate-spin" />
+                      ) : (
+                        <Check size={11} className="text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                      <span className={`text-xs font-medium ${isReplacing ? 'text-blue-600' : 'text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity'}`}>
+                        {isReplacing ? 'Заменяем...' : 'Выбрать'}
+                      </span>
                     </div>
                   </button>
                 );
@@ -408,6 +619,7 @@ interface MaterialsEditorTableProps {
   isFullRoom: boolean;
   onDelete: (groupIndex: number, itemId: string) => void;
   onReplace: (item: EditableItem) => void;
+  onAiAlternatives: (item: EditableItem) => void;
   onQtyChange: (groupIndex: number, itemId: string, newPkgCount: number) => void;
   onAddMaterial: (groupIndex: number) => void;
   t: TFunc;
@@ -415,7 +627,7 @@ interface MaterialsEditorTableProps {
 
 export function MaterialsEditorTable({
   group, groupIndex, budget, isFullRoom,
-  onDelete, onReplace, onQtyChange, onAddMaterial, t,
+  onDelete, onReplace, onAiAlternatives, onQtyChange, onAddMaterial, t,
 }: MaterialsEditorTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -451,7 +663,7 @@ export function MaterialsEditorTable({
     <div>
       {/* Column headers */}
       <div className="grid items-center px-5 py-2.5 border-b border-gray-100 bg-gray-50/60"
-        style={{ gridTemplateColumns: '1fr 140px 148px 90px 82px' }}>
+        style={{ gridTemplateColumns: '1fr 140px 148px 90px 110px' }}>
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Материал</span>
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest hidden sm:block">Производитель</span>
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">Количество</span>
@@ -466,7 +678,7 @@ export function MaterialsEditorTable({
           return (
             <div
               key={item._id}
-              style={{ gridTemplateColumns: '1fr 140px 148px 90px 82px' }}
+              style={{ gridTemplateColumns: '1fr 140px 148px 90px 110px' }}
               className={[
                 'grid items-center px-5 py-3 group/row',
                 'hover:bg-slate-50/70 transition-all duration-150',
@@ -541,6 +753,14 @@ export function MaterialsEditorTable({
                   </div>
                 ) : (
                   <div className="flex items-center gap-0.5 bg-gray-100/80 rounded-xl p-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150">
+                    <button
+                      type="button"
+                      onClick={() => onAiAlternatives(item)}
+                      title="AI-альтернативы"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white hover:shadow-sm transition-all"
+                    >
+                      <Brain size={13} className="text-violet-500" strokeWidth={2} />
+                    </button>
                     <button
                       type="button"
                       onClick={() => onReplace(item)}

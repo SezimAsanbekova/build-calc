@@ -10,6 +10,8 @@ export async function GET(request: NextRequest) {
     const manufacturerId = searchParams.get('manufacturerId') ?? '';
     const repairLevel = searchParams.get('repairLevel') ?? '';
     const surfaceType = searchParams.get('surfaceType') ?? '';
+    const sectionId = searchParams.get('sectionId') ?? '';
+    const sectionSlug = searchParams.get('sectionSlug') ?? '';
     const minPrice = parseFloat(searchParams.get('minPrice') ?? '0') || 0;
     const maxPrice = parseFloat(searchParams.get('maxPrice') ?? '0') || 0;
     const sortBy = searchParams.get('sortBy') ?? 'name_asc';
@@ -29,6 +31,11 @@ export async function GET(request: NextRequest) {
     if (manufacturerId) where.manufacturerId = manufacturerId;
     if (repairLevel) where.repairLevel = repairLevel;
     if (surfaceType) where.surfaceType = surfaceType;
+    if (sectionId) where.sectionId = sectionId;
+    if (sectionSlug) {
+      const sec = await prisma.repairSection.findUnique({ where: { slug: sectionSlug }, select: { id: true } });
+      if (sec) where.sectionId = sec.id;
+    }
     if (minPrice > 0 || maxPrice > 0) {
       where.price = {
         ...(minPrice > 0 ? { gte: minPrice } : {}),
@@ -56,6 +63,7 @@ export async function GET(request: NextRequest) {
           category: { select: { id: true, name: true } },
           manufacturer: { select: { id: true, name: true, country: true } },
           properties: { select: { name: true, value: true } },
+          section: { select: { id: true, name: true, slug: true, icon: true } },
         },
       }),
       prisma.category.findMany({ orderBy: { name: 'asc' } }),
@@ -77,6 +85,8 @@ export async function GET(request: NextRequest) {
       imageUrl: m.imageUrl,
       repairLevel: m.repairLevel,
       surfaceType: m.surfaceType,
+      sectionId: m.sectionId,
+      section: (m as unknown as { section?: unknown }).section ?? null,
       category: m.category,
       manufacturer: m.manufacturer,
       properties: m.properties,

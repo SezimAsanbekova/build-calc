@@ -10,10 +10,60 @@ interface SuggestedAlternative {
   imageUrl: string | null;
   category: { id: string; name: string };
   manufacturer: { id: string; name: string };
-  priceDifference: number;     // отрицательное = дешевле
-  priceDifferencePct: number;  // отрицательное = дешевле
+  priceDifference: number;
+  priceDifferencePct: number;
   cheaper: boolean;
-  withinBudget: boolean | null; // null если бюджет не указан
+  withinBudget: boolean | null;
+  compatibilityScore: number;
+  cheaperBy: number | null;
+  reason: string | null;
+}
+
+interface AltMat {
+  id: string;
+  name: string;
+  price: { toString(): string };
+  isAvailable: boolean;
+  isActive: boolean;
+  imageUrl: string | null;
+  categoryId: string;
+  sectionId: string | null;
+  surfaceType: string | null;
+  repairLevel: string;
+  unit: string;
+  category: { id: string; name: string };
+  manufacturer: { id: string; name: string };
+}
+
+interface AltEntry {
+  mat: AltMat;
+  compatibilityScore: number;
+  cheaperBy: number | null;
+  reason: string | null;
+}
+
+// Порядок уровней ремонта
+const REPAIR_ORDER: Record<string, number> = { econom: 0, standard: 1, premium: 2 };
+
+function isRepairCompatible(a: string, b: string): boolean {
+  return Math.abs((REPAIR_ORDER[a] ?? 0) - (REPAIR_ORDER[b] ?? 0)) <= 1;
+}
+
+type AttrCheck = {
+  categoryId: string;
+  sectionId: string | null;
+  surfaceType: string | null;
+  repairLevel: string;
+  unit: string;
+};
+
+function isAttributeCompatible(orig: AttrCheck, alt: AttrCheck): boolean {
+  if (orig.categoryId !== alt.categoryId) return false;
+  if (orig.unit !== alt.unit) return false;
+  if (orig.surfaceType && alt.surfaceType && orig.surfaceType !== alt.surfaceType) return false;
+  if (orig.sectionId && alt.sectionId && orig.sectionId !== alt.sectionId) return false;
+  if (!isRepairCompatible(orig.repairLevel, alt.repairLevel)) return false;
+  return true;
 }
 
 interface SuggestResponse {
@@ -56,6 +106,11 @@ export async function POST(request: NextRequest) {
         price: true,
         isAvailable: true,
         isActive: true,
+        categoryId: true,
+        sectionId: true,
+        surfaceType: true,
+        repairLevel: true,
+        unit: true,
       },
     });
 
@@ -88,6 +143,7 @@ export async function POST(request: NextRequest) {
           select: {
             id: true, name: true, price: true, isAvailable: true, isActive: true,
             imageUrl: true,
+            categoryId: true, sectionId: true, surfaceType: true, repairLevel: true, unit: true,
             category: { select: { id: true, name: true } },
             manufacturer: { select: { id: true, name: true } },
           },
@@ -96,6 +152,7 @@ export async function POST(request: NextRequest) {
           select: {
             id: true, name: true, price: true, isAvailable: true, isActive: true,
             imageUrl: true,
+            categoryId: true, sectionId: true, surfaceType: true, repairLevel: true, unit: true,
             category: { select: { id: true, name: true } },
             manufacturer: { select: { id: true, name: true } },
           },
@@ -103,19 +160,43 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Извлекаем уникальные альтернативные материалы (исключая основной)
-    const altMap = new Map<string, typeof records[number]['alternativeMaterial']>();
+    // Атрибуты исходного материала для строгой проверки
+    const origAttrs: AttrCheck = {
+      categoryId: material.categoryId,
+      sectionId: material.sectionId,
+      surfaceType: material.surfaceType as string | null,
+      repairLevel: material.repairLevel as string,
+      unit: material.unit,
+    };
+
+    // Извлекаем уникальные альтернативы с AI-полями + строгой фильтрацией
+    const altMap = new Map<string, AltEntry>();
     for (const r of records) {
-      if (r.materialId === materialId) {
-        altMap.set(r.alternativeMaterial.id, r.alternativeMaterial);
-      } else if (r.alternativeMaterialId === materialId) {
-        altMap.set(r.material.id, r.material);
-      }
+      const isForward = r.materialId === materialId;
+      const altMat = isForward ? (r.alternativeMaterial as AltMat) : (r.material as AltMat);
+      if (altMat.id === materialId || altMap.has(altMat.id)) continue;
+
+      // Строгая проверка атрибутов
+      const altAttrs: AttrCheck = {
+        categoryId: altMat.categoryId,
+        sectionId: altMat.sectionId,
+        surfaceType: altMat.surfaceType,
+        repairLevel: altMat.repairLevel,
+        unit: altMat.unit,
+      };
+      if (!isAttributeCompatible(origAttrs, altAttrs)) continue;
+
+      altMap.set(altMat.id, {
+        mat: altMat,
+        compatibilityScore: r.compatibilityScore,
+        cheaperBy: r.cheaperBy != null ? Number(r.cheaperBy) : null,
+        reason: r.reason ?? null,
+      });
     }
 
     let alternatives: SuggestedAlternative[] = Array.from(altMap.values())
-      .filter((a) => a.isActive) // не показываем выключенные
-      .map((a) => {
+      .filter(({ mat }) => mat.isActive)
+      .map(({ mat: a, compatibilityScore, cheaperBy, reason }) => {
         const altPrice = Number(a.price);
         const diff = altPrice - basePrice;
         const diffPct = basePrice > 0 ? (diff / basePrice) * 100 : 0;
@@ -132,6 +213,9 @@ export async function POST(request: NextRequest) {
           priceDifferencePct: diffPct,
           cheaper: diff < 0,
           withinBudget: budgetNum !== null ? altPrice <= budgetNum : null,
+          compatibilityScore,
+          cheaperBy,
+          reason,
         };
       });
 
@@ -144,9 +228,11 @@ export async function POST(request: NextRequest) {
       alternatives = alternatives.filter((a) => a.isAvailable);
     }
 
-    // Сортировка: сначала дешёвые, потом доступные, потом всё
+    // Сортировка: доступные → compatibilityScore desc → цена asc
     alternatives.sort((a, b) => {
       if (a.isAvailable !== b.isAvailable) return a.isAvailable ? -1 : 1;
+      const scoreDiff = (b.compatibilityScore ?? 0) - (a.compatibilityScore ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
       return a.price - b.price;
     });
 

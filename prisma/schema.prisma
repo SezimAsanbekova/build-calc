@@ -28,6 +28,8 @@ enum SurfaceType {
   ceiling
 }
 
+// Legacy enum — kept for backward compat on existing records
+
 enum CompatibilityType {
   required
   recommended
@@ -109,6 +111,106 @@ model VerificationCode {
 }
 
 //////////////////////////////////////////////////////
+// REPAIR SECTIONS
+//////////////////////////////////////////////////////
+
+model RepairSection {
+  id          String   @id @default(uuid()) @db.Uuid
+
+  name        String   @db.VarChar(255)
+
+  slug        String   @unique @db.VarChar(100)
+
+  icon        String?  @db.VarChar(50)
+
+  sortOrder   Int      @default(0) @map("sort_order")
+
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  materials           Material[]
+
+  roomTypeSections    RoomTypeSection[]
+
+  calculationSections CalculationSection[]
+
+  @@map("repair_sections")
+}
+
+//////////////////////////////////////////////////////
+// ROOM TYPES
+//////////////////////////////////////////////////////
+
+model RoomType {
+  id              String   @id @default(uuid()) @db.Uuid
+
+  name            String   @db.VarChar(255)
+
+  slug            String   @unique @db.VarChar(100)
+
+  icon            String?  @db.VarChar(50)
+
+  isCustomAllowed Boolean  @default(false) @map("is_custom_allowed")
+
+  sortOrder       Int      @default(0) @map("sort_order")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  roomTypeSections RoomTypeSection[]
+
+  @@map("room_types")
+}
+
+//////////////////////////////////////////////////////
+// ROOM TYPE SECTIONS (which sections belong to which room type)
+//////////////////////////////////////////////////////
+
+model RoomTypeSection {
+  id            String   @id @default(uuid()) @db.Uuid
+
+  roomTypeId    String   @map("room_type_id") @db.Uuid
+
+  sectionId     String   @map("section_id") @db.Uuid
+
+  isDefault     Boolean  @default(true) @map("is_default")
+
+  sortOrder     Int      @default(0) @map("sort_order")
+
+  roomType  RoomType      @relation(fields: [roomTypeId], references: [id], onDelete: Cascade)
+
+  section   RepairSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([roomTypeId, sectionId])
+
+  @@map("room_type_sections")
+}
+
+//////////////////////////////////////////////////////
+// CALCULATION SECTIONS (selected sections per calculation)
+//////////////////////////////////////////////////////
+
+model CalculationSection {
+  id            String   @id @default(uuid()) @db.Uuid
+
+  calculationId String   @map("calculation_id") @db.Uuid
+
+  sectionId     String   @map("section_id") @db.Uuid
+
+  enabled       Boolean  @default(true)
+
+  subtotal      Decimal  @default(0) @db.Decimal(10, 2)
+
+  calculation Calculation   @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+
+  section     RepairSection @relation(fields: [sectionId], references: [id])
+
+  @@map("calculation_sections")
+}
+
+//////////////////////////////////////////////////////
 // CATEGORIES
 //////////////////////////////////////////////////////
 
@@ -161,7 +263,9 @@ model Material {
 
   repairLevel             RepairLevel @map("repair_level")
 
-  surfaceType             SurfaceType @map("surface_type")
+  surfaceType             SurfaceType? @map("surface_type")
+
+  sectionId               String?  @map("section_id") @db.Uuid
 
   price                   Decimal  @db.Decimal(10, 2)
 
@@ -197,6 +301,8 @@ model Material {
 
   properties              MaterialProperty[]
 
+  section                 RepairSection? @relation(fields: [sectionId], references: [id])
+
   compatibilities         MaterialCompatibility[] @relation("MaterialCompatibilities")
 
   compatibleWith          MaterialCompatibility[] @relation("CompatibleMaterials")
@@ -220,6 +326,8 @@ model Material {
   @@index([repairLevel])
 
   @@index([surfaceType])
+
+  @@index([sectionId])
 
   @@map("materials")
 }
@@ -279,6 +387,12 @@ model MaterialAlternative {
 
   alternativeMaterialId     String   @map("alternative_material_id") @db.Uuid
 
+  compatibilityScore        Int      @default(0) @map("compatibility_score")
+
+  cheaperBy                 Decimal? @map("cheaper_by") @db.Decimal(10, 2)
+
+  reason                    String?  @db.Text
+
   material                  Material @relation("MaterialAlternatives", fields: [materialId], references: [id])
 
   alternativeMaterial       Material @relation("AlternativeMaterials", fields: [alternativeMaterialId], references: [id])
@@ -299,7 +413,7 @@ model Calculation {
 
   roomType            String   @map("room_type") @db.VarChar(100)
 
-  surfaceType         SurfaceType @map("surface_type")
+  surfaceType         SurfaceType? @map("surface_type")
 
   length              Float
 
@@ -322,6 +436,8 @@ model Calculation {
   variants            Variant[]
 
   estimates           Estimate[]
+
+  calculationSections CalculationSection[]
 
   @@map("calculations")
 }
@@ -368,6 +484,18 @@ model VariantItem {
   unitPrice           Decimal  @map("unit_price") @db.Decimal(10, 2)
 
   totalPrice          Decimal  @map("total_price") @db.Decimal(10, 2)
+
+  isDeleted           Boolean  @default(false) @map("is_deleted")
+
+  deletedAt           DateTime? @map("deleted_at")
+
+  customPrice         Decimal?  @map("custom_price") @db.Decimal(10, 2)
+
+  customQuantity      Float?    @map("custom_quantity")
+
+  isCustom            Boolean  @default(false) @map("is_custom")
+
+  replacedFromId      String?  @map("replaced_from_id") @db.Uuid
 
   variant             Variant @relation(fields: [variantId], references: [id])
 

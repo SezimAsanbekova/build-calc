@@ -13,7 +13,9 @@ interface MaterialRow {
   categoryId: string;
   manufacturerId: string;
   repairLevel: 'econom' | 'standard' | 'premium';
-  surfaceType: 'wall' | 'floor' | 'ceiling';
+  surfaceType?: 'wall' | 'floor' | 'ceiling' | null;
+  sectionId?: string | null;
+  section?: { id: string; name: string; slug: string; icon: string | null } | null;
   price: string;
   consumptionPerM2: string;
   unit: string;
@@ -35,7 +37,7 @@ const repairLevelLabels: Record<string, string> = {
   premium: 'Премиум',
 };
 
-const surfaceTypeLabels: Record<string, string> = {
+const legacySurfaceLabels: Record<string, string> = {
   wall: 'Стена',
   floor: 'Пол',
   ceiling: 'Потолок',
@@ -60,8 +62,9 @@ function MaterialsContent() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [repairLevelFilter, setRepairLevelFilter] = useState<string>('all');
-  const [surfaceTypeFilter, setSurfaceTypeFilter] = useState<string>('all');
+  const [sectionFilter, setSectionFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  const [sectionOptions, setSectionOptions] = useState<{ id: string; name: string }[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<MaterialFormData> | undefined>(undefined);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -70,10 +73,17 @@ function MaterialsContent() {
   const fetchMaterials = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/materials');
-      if (res.ok) {
-        const data = await res.json();
+      const [matRes, secRes] = await Promise.all([
+        fetch('/api/admin/materials'),
+        fetch('/api/sections'),
+      ]);
+      if (matRes.ok) {
+        const data = await matRes.json();
         setMaterials(data.materials);
+      }
+      if (secRes.ok) {
+        const data = await secRes.json();
+        setSectionOptions(data.sections ?? []);
       }
     } finally {
       setLoading(false);
@@ -96,7 +106,8 @@ function MaterialsContent() {
       categoryId: m.categoryId,
       manufacturerId: m.manufacturerId,
       repairLevel: m.repairLevel,
-      surfaceType: m.surfaceType,
+      surfaceType: m.surfaceType ?? undefined,
+      sectionId: m.sectionId ?? '',
       price: m.price.toString(),
       consumptionPerM2: m.consumptionPerM2.toString(),
       unit: m.unit,
@@ -135,8 +146,8 @@ function MaterialsContent() {
     // Фильтр по уровню ремонта
     const matchesRepairLevel = repairLevelFilter === 'all' || m.repairLevel === repairLevelFilter;
 
-    // Фильтр по типу поверхности
-    const matchesSurfaceType = surfaceTypeFilter === 'all' || m.surfaceType === surfaceTypeFilter;
+    // Фильтр по секции
+    const matchesSurfaceType = sectionFilter === 'all' || m.sectionId === sectionFilter || (m.section?.id === sectionFilter);
 
     // Фильтр по дате
     let matchesDate = true;
@@ -163,6 +174,11 @@ function MaterialsContent() {
 
     return matchesSearch && matchesRepairLevel && matchesSurfaceType && matchesDate;
   });
+
+  const sectionSelectOptions = [
+    { value: 'all', label: 'Все секции' },
+    ...sectionOptions.map((s) => ({ value: s.id, label: s.name })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -199,18 +215,13 @@ function MaterialsContent() {
               />
             </div>
 
-            {/* Фильтр по поверхности */}
-            <div className="w-full sm:w-40">
+            {/* Фильтр по секции */}
+            <div className="w-full sm:w-44">
               <AdminSelect
-                value={surfaceTypeFilter}
-                onChange={setSurfaceTypeFilter}
-                placeholder="Поверхность"
-                options={[
-                  { value: 'all', label: 'Все поверхности' },
-                  { value: 'wall', label: 'Стена' },
-                  { value: 'floor', label: 'Пол' },
-                  { value: 'ceiling', label: 'Потолок' },
-                ]}
+                value={sectionFilter}
+                onChange={setSectionFilter}
+                placeholder="Секция"
+                options={sectionSelectOptions}
               />
             </div>
 
@@ -231,11 +242,11 @@ function MaterialsContent() {
             </div>
 
             {/* Сброс фильтров */}
-            {(repairLevelFilter !== 'all' || surfaceTypeFilter !== 'all' || dateFilter !== 'all' || search) && (
+            {(repairLevelFilter !== 'all' || sectionFilter !== 'all' || dateFilter !== 'all' || search) && (
               <button
                 onClick={() => {
                   setRepairLevelFilter('all');
-                  setSurfaceTypeFilter('all');
+                  setSectionFilter('all');
                   setDateFilter('all');
                   setSearch('');
                 }}
@@ -294,7 +305,7 @@ function MaterialsContent() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Категория</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Производитель</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Уровень</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Поверхность</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Секция</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Цена</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Склад</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Действия</th>
@@ -326,7 +337,9 @@ function MaterialsContent() {
                         {repairLevelLabels[m.repairLevel]}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-300 whitespace-nowrap">{surfaceTypeLabels[m.surfaceType]}</td>
+                    <td className="px-4 py-3 text-sm text-slate-300 whitespace-nowrap">
+                      {m.section?.name ?? (m.surfaceType ? legacySurfaceLabels[m.surfaceType] : '—')}
+                    </td>
                     <td className="px-4 py-3 text-sm text-white text-right whitespace-nowrap font-medium">
                       {Number(m.price).toLocaleString('ru-RU', { minimumFractionDigits: 2 })}
                     </td>

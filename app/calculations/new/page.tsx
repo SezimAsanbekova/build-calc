@@ -52,25 +52,56 @@ import { useTranslation } from '@/app/i18n/useTranslation';
 
 type RoomIconFC = FC<LucideProps>;
 
-const ROOM_TYPE_VALUES: { value: string; Icon: RoomIconFC }[] = [
-  { value: 'living_room', Icon: Sofa       },
-  { value: 'bedroom',     Icon: BedDouble  },
-  { value: 'kitchen',     Icon: ChefHat    },
-  { value: 'bathroom',    Icon: Bath       },
-  { value: 'hallway',     Icon: DoorOpen   },
-  { value: 'office',      Icon: Briefcase  },
-];
+const ROOM_ICON_MAP: Record<string, RoomIconFC> = {
+  Sofa:      Sofa,
+  BedDouble: BedDouble,
+  ChefHat:   ChefHat,
+  Bath:      Bath,
+  DoorOpen:  DoorOpen,
+  Briefcase: Briefcase,
+  Gamepad2:  Gamepad2,
+  Flower2:   Flower2,
+  Home:      Home,
+};
 
 const SECTION_ICON_MAP: Record<string, RoomIconFC> = {
-  walls:       Layers,
-  floor:       PanelBottom,
-  ceiling:     PanelTop,
-  lighting:    Lightbulb,
-  electrical:  Zap,
-  doors:       DoorOpen,
-  windows:     AppWindow,
-  plumbing:    Droplets,
+  Layers:      Layers,
+  PanelBottom: PanelBottom,
+  PanelTop:    PanelTop,
+  Lightbulb:   Lightbulb,
+  Zap:         Zap,
+  DoorOpen:    DoorOpen,
+  AppWindow:   AppWindow,
+  Droplets:    Droplets,
+  Grid:        Package,
+  Sofa:        Sofa,
+  Palette:     Palette,
 };
+
+function getRoomIcon(iconName: string | null | undefined): RoomIconFC {
+  return (iconName ? ROOM_ICON_MAP[iconName] : null) ?? Home;
+}
+
+function getSectionIcon(iconName: string | null | undefined): RoomIconFC {
+  return (iconName ? SECTION_ICON_MAP[iconName] : null) ?? Package;
+}
+
+interface ApiSection {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  sortOrder: number;
+}
+
+interface ApiRoomType {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  isCustomAllowed: boolean;
+  sections: (ApiSection & { isDefault: boolean; sortOrder: number })[];
+}
 
 const CUSTOM_ROOM_ICON_OPTIONS: { name: string; Icon: RoomIconFC }[] = [
   { name: 'Home',      Icon: Home      },
@@ -115,8 +146,7 @@ const REPAIR_LEVEL_VALUES = [
   { value: 'premium',  color: 'violet'  },
 ];
 
-const ALL_SECTIONS = ['walls','floor','ceiling','lighting','electrical','doors','windows','plumbing'] as const;
-type SectionKey = typeof ALL_SECTIONS[number];
+const STATIC_SECTIONS = ['walls','floor','ceiling','lighting','electrical','doors','windows','plumbing'] as const;
 
 interface FormData {
   projectName: string;
@@ -150,13 +180,13 @@ const initialForm: FormData = {
   doorHeight: '2.1',
 };
 
-const initialSections: Record<SectionKey, boolean> = {
+const initialSections: Record<string, boolean> = {
   walls: true, floor: true, ceiling: true,
   lighting: false, electrical: false, doors: false,
   windows: false, plumbing: false,
 };
 
-function deriveSurfaceType(s: Record<SectionKey, boolean>): string {
+function deriveSurfaceType(s: Record<string, boolean>): string {
   if (s.walls && s.floor && s.ceiling) return 'full_room';
   if (s.walls) return 'walls';
   if (s.floor)  return 'floor';
@@ -171,10 +201,13 @@ export default function NewCalculationPage() {
   const router = useRouter();
   const { t } = useTranslation('calculations');
   const [form, setForm] = useState<FormData>(initialForm);
-  const [sections, setSections] = useState<Record<SectionKey, boolean>>(initialSections);
+  const [sections, setSections] = useState<Record<string, boolean>>(initialSections);
   const [wallFinishing, setWallFinishing] = useState('');
   const [floorCovering, setFloorCovering] = useState('');
   const [ceilingType, setCeilingType] = useState('');
+  const [apiSections, setApiSections] = useState<ApiSection[]>([]);
+  const [apiRoomTypes, setApiRoomTypes] = useState<ApiRoomType[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
 
@@ -195,10 +228,21 @@ export default function NewCalculationPage() {
         } catch { /* ignore */ }
         sessionStorage.removeItem('calc_prefill');
       }
-      fetch('/api/custom-rooms')
-        .then((r) => r.ok ? r.json() : [])
-        .then((data: CustomRoom[]) => setCustomRooms(data))
-        .catch(() => {});
+      Promise.all([
+        fetch('/api/custom-rooms').then((r) => r.ok ? r.json() : []),
+        fetch('/api/sections').then((r) => r.ok ? r.json() : { sections: [] }),
+        fetch('/api/room-types').then((r) => r.ok ? r.json() : { roomTypes: [] }),
+      ]).then(([customData, sectionsData, roomTypesData]) => {
+        setCustomRooms(customData as CustomRoom[]);
+        const secs: ApiSection[] = sectionsData.sections ?? [];
+        setApiSections(secs);
+        setApiRoomTypes(roomTypesData.roomTypes ?? []);
+        if (secs.length > 0) {
+          const initialMap: Record<string, boolean> = {};
+          secs.forEach((s) => { initialMap[s.slug] = ['walls','floor','ceiling'].includes(s.slug); });
+          setSections(initialMap);
+        }
+      }).catch(() => {}).finally(() => setDataLoading(false));
     }
   }, [isReady]);
 
@@ -259,16 +303,29 @@ export default function NewCalculationPage() {
   }
 
   const area = form.length && form.width ? (parseFloat(form.length) * parseFloat(form.width)).toFixed(1) : null;
-  const showHeight = sections.walls || sections.ceiling;
+  const showHeight = !!(sections.walls || sections.ceiling);
   const openingsPreview = showHeight
     ? (parseInt(form.windowCount) || 0) * (parseFloat(form.windowWidth) || 0) * (parseFloat(form.windowHeight) || 0)
       + (parseInt(form.doorCount) || 0) * (parseFloat(form.doorWidth) || 0) * (parseFloat(form.doorHeight) || 0)
     : 0;
-  const activeSectionCount = ALL_SECTIONS.filter((s) => sections[s]).length;
+  const activeSectionCount = Object.values(sections).filter(Boolean).length;
 
-  const toggleSection = (key: SectionKey) => {
+  const displaySections = apiSections.length > 0 ? apiSections : STATIC_SECTIONS.map((slug) => ({ id: slug, name: slug, slug, icon: null, sortOrder: 0 }));
+
+  const toggleSection = (key: string) => {
     setSections((prev) => ({ ...prev, [key]: !prev[key] }));
     setErrors((prev) => ({ ...prev, sections: undefined }));
+  };
+
+  const handleRoomTypeSelect = (slug: string) => {
+    handleChange('roomType', slug);
+    const rt = apiRoomTypes.find((r) => r.slug === slug);
+    if (rt && rt.sections.length > 0) {
+      const newSecs: Record<string, boolean> = {};
+      displaySections.forEach((s) => { newSecs[s.slug] = false; });
+      rt.sections.forEach((s) => { newSecs[s.slug] = s.isDefault; });
+      setSections(newSecs);
+    }
   };
 
   const validate = (): boolean => {
@@ -402,21 +459,29 @@ export default function NewCalculationPage() {
                     <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">{t('new.roomType')}</h2>
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {/* Стандартные комнаты */}
-                    {ROOM_TYPE_VALUES.map(({ value, Icon }) => {
-                      const active = form.roomType === value;
+                    {/* Типы помещений из БД */}
+                    {(apiRoomTypes.length > 0 ? apiRoomTypes : [
+                      { id: 'living_room', slug: 'living_room', name: t('new.roomTypes.living_room'), icon: 'Sofa', sections: [], isCustomAllowed: false },
+                      { id: 'bedroom',     slug: 'bedroom',     name: t('new.roomTypes.bedroom'),     icon: 'BedDouble', sections: [], isCustomAllowed: false },
+                      { id: 'kitchen',     slug: 'kitchen',     name: t('new.roomTypes.kitchen'),     icon: 'ChefHat', sections: [], isCustomAllowed: false },
+                      { id: 'bathroom',    slug: 'bathroom',    name: t('new.roomTypes.bathroom'),    icon: 'Bath', sections: [], isCustomAllowed: false },
+                      { id: 'hallway',     slug: 'hallway',     name: t('new.roomTypes.hallway'),     icon: 'DoorOpen', sections: [], isCustomAllowed: false },
+                      { id: 'office',      slug: 'office',      name: t('new.roomTypes.office'),      icon: 'Briefcase', sections: [], isCustomAllowed: false },
+                    ] as ApiRoomType[]).map((rt) => {
+                      const active = form.roomType === rt.slug;
+                      const RIcon = getRoomIcon(rt.icon);
                       return (
-                        <button key={value} type="button"
-                          onClick={() => handleChange('roomType', value)}
+                        <button key={rt.id} type="button"
+                          onClick={() => handleRoomTypeSelect(rt.slug)}
                           className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 cursor-pointer transition-all duration-150 ${
                             active ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/40'
                           }`}
                         >
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${active ? 'bg-blue-500' : 'bg-gray-100'}`}>
-                            <Icon size={18} className={active ? 'text-white' : 'text-gray-500'} />
+                            <RIcon size={18} className={active ? 'text-white' : 'text-gray-500'} />
                           </div>
                           <span className={`text-xs font-medium text-center leading-tight ${active ? 'text-blue-700' : 'text-gray-600'}`}>
-                            {t(`new.roomTypes.${value}`)}
+                            {apiRoomTypes.length > 0 ? rt.name : t(`new.roomTypes.${rt.slug}`)}
                           </span>
                         </button>
                       );
@@ -554,22 +619,23 @@ export default function NewCalculationPage() {
                     )}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {ALL_SECTIONS.map((key) => {
-                      const active = sections[key];
+                    {displaySections.map((sec) => {
+                      const active = !!sections[sec.slug];
+                      const SIcon = getSectionIcon(sec.icon);
                       return (
                         <button
-                          key={key}
+                          key={sec.id}
                           type="button"
-                          onClick={() => toggleSection(key)}
+                          onClick={() => toggleSection(sec.slug)}
                           className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all text-left ${
                             active
                               ? 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300 bg-gray-50'
                           }`}
                         >
-                          {(() => { const SIcon = SECTION_ICON_MAP[key]; return <SIcon size={14} className={active ? 'text-blue-600 flex-shrink-0' : 'text-gray-400 flex-shrink-0'} />; })()}
+                          <SIcon size={14} className={active ? 'text-blue-600 flex-shrink-0' : 'text-gray-400 flex-shrink-0'} />
                           <span className={`text-xs font-medium ${active ? 'text-blue-700' : 'text-gray-600'}`}>
-                            {t(`new.sections.${key}`)}
+                            {sec.name || t(`new.sections.${sec.slug}`)}
                           </span>
                           {active && (
                             <div className="ml-auto w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
@@ -583,7 +649,7 @@ export default function NewCalculationPage() {
                   {errors.sections && <p className="mt-2 text-xs text-red-500">{errors.sections}</p>}
 
                   {/* Стены — тип отделки */}
-                  {sections.walls && (
+                  {!!sections.walls && (
                     <div className="mt-5 pt-5 border-t border-gray-100">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">🧱 {t('new.wallFinishing')}</p>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -607,7 +673,7 @@ export default function NewCalculationPage() {
                   )}
 
                   {/* Пол — тип покрытия */}
-                  {sections.floor && (
+                  {!!sections.floor && (
                     <div className="mt-5 pt-5 border-t border-gray-100">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">🪵 {t('new.floorCovering')}</p>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -626,7 +692,7 @@ export default function NewCalculationPage() {
                   )}
 
                   {/* Потолок — тип */}
-                  {sections.ceiling && (
+                  {!!sections.ceiling && (
                     <div className="mt-5 pt-5 border-t border-gray-100">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">✨ {t('new.ceilingType')}</p>
                       <div className="grid grid-cols-3 gap-2">
@@ -894,9 +960,9 @@ export default function NewCalculationPage() {
                       <span className="text-blue-200">{t('new.sections.title')}</span>
                       <div className="flex items-center gap-1 flex-wrap justify-end max-w-[60%]">
                         {activeSectionCount > 0
-                          ? ALL_SECTIONS.filter((s) => sections[s]).map((s) => {
-                              const SI = SECTION_ICON_MAP[s];
-                              return <SI key={s} size={13} className="text-white/80" />;
+                          ? displaySections.filter((s) => sections[s.slug]).map((s) => {
+                              const SI = getSectionIcon(s.icon);
+                              return <SI key={s.id} size={13} className="text-white/80" />;
                             })
                           : <span className="font-medium">—</span>}
                       </div>

@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate && ln -sf $(pwd)/node_modules/.prisma node_modules/@prisma/client/.prisma"
+    "postinstall": "prisma generate && ln -sf $(pwd)/node_modules/.prisma node_modules/@prisma/client/.prisma",
+    "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1047.0",

@@ -39,6 +39,7 @@ export async function GET() {
       include: {
         category: { select: { id: true, name: true } },
         manufacturer: { select: { id: true, name: true } },
+        section: { select: { id: true, name: true, slug: true, icon: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
       manufacturerId,
       repairLevel,
       surfaceType,
+      sectionId,
       price,
       consumptionPerM2,
       unit,
@@ -72,11 +74,11 @@ export async function POST(request: NextRequest) {
       imageUrl,
       isAvailable,
       isActive,
-      forceCreate, // Флаг принудительного создания
+      forceCreate,
     } = body;
 
     // Валидация
-    if (!name || !categoryId || !manufacturerId || !repairLevel || !surfaceType) {
+    if (!name || !categoryId || !manufacturerId || !repairLevel) {
       return NextResponse.json(
         { error: 'Заполните обязательные поля' },
         { status: 400 }
@@ -165,7 +167,8 @@ export async function POST(request: NextRequest) {
         categoryId,
         manufacturerId,
         repairLevel,
-        surfaceType,
+        ...(surfaceType ? { surfaceType } : {}),
+        ...(sectionId ? { sectionId } : {}),
         price: price.toString(),
         consumptionPerM2: consumptionPerM2.toString(),
         unit,
@@ -180,6 +183,7 @@ export async function POST(request: NextRequest) {
       include: {
         category: { select: { id: true, name: true } },
         manufacturer: { select: { id: true, name: true } },
+        section: { select: { id: true, name: true, slug: true, icon: true } },
       },
     });
 

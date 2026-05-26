@@ -52,12 +52,52 @@ interface SurfaceGroup {
   subtotal: number;
 }
 
+// ── Вспомогательная функция: жадный отбор материалов без конфликтов ──────────
+async function filterCompatible<T extends { id: string; name: string }>(
+  candidates: T[],
+  extraIds: string[] = [],
+): Promise<{ selected: T[]; skippedWarnings: string[] }> {
+  const allIds = [...new Set([...candidates.map((m) => m.id), ...extraIds])];
+  if (!allIds.length) return { selected: [], skippedWarnings: [] };
+
+  // Двунаправленная загрузка всех пар incompatible
+  const incompatibleRecords = await prisma.materialCompatibility.findMany({
+    where: {
+      compatibilityType: 'incompatible',
+      OR: [
+        { materialId: { in: allIds } },
+        { compatibleMaterialId: { in: allIds } },
+      ],
+    },
+    select: { materialId: true, compatibleMaterialId: true },
+  });
+
+  const incompSet = new Set(
+    incompatibleRecords.map((p) => [p.materialId, p.compatibleMaterialId].sort().join(':')),
+  );
+  const isIncompat = (a: string, b: string) => incompSet.has([a, b].sort().join(':'));
+
+  const selected: T[] = [];
+  const skippedWarnings: string[] = [];
+
+  for (const m of candidates) {
+    const conflict = selected.find((s) => isIncompat(m.id, s.id));
+    if (conflict) {
+      skippedWarnings.push(`Пропущен "${m.name}" — несовместим с "${conflict.name}"`);
+    } else {
+      selected.push(m);
+    }
+  }
+
+  return { selected, skippedWarnings };
+}
+
 async function calcSurface(
   dbSurface: SurfaceType,
   dbRepair: RepairLevel,
   surfaceArea: number,
 ): Promise<SurfaceGroup & { warnings: string[]; recommendations: RecommendationItem[] }> {
-  const materials = await prisma.material.findMany({
+  const candidates = await prisma.material.findMany({
     where: {
       surfaceType: dbSurface,
       repairLevel: dbRepair,
@@ -76,23 +116,29 @@ async function calcSurface(
     orderBy: { createdAt: 'asc' },
   });
 
-  const materialIds = new Set(materials.map((m) => m.id));
   const warnings: string[] = [];
   const recommendations: RecommendationItem[] = [];
+
+  if (!candidates.length) {
+    return { surface: dbSurface, label: SURFACE_LABEL[dbSurface], surfaceArea, items: [], subtotal: 0, warnings, recommendations };
+  }
+
+  // Жадный отбор с двунаправленной проверкой incompatible
+  const { selected, skippedWarnings } = await filterCompatible(candidates);
+  warnings.push(...skippedWarnings);
+
+  // Required / recommended из прямых связей отобранных материалов
+  const selectedIds = new Set(selected.map((m) => m.id));
   const requiredIds: string[] = [];
 
-  for (const m of materials) {
+  for (const m of selected) {
     for (const compat of m.compatibilities) {
       const cId = compat.compatibleMaterialId;
-      if (compat.compatibilityType === 'incompatible' && materialIds.has(cId)) {
-        warnings.push(
-          `Несовместимость: "${m.name}" и "${compat.compatibleMaterial.name}"${compat.reason ? ' — ' + compat.reason : ''}`,
-        );
-      }
-      if (compat.compatibilityType === 'required' && !materialIds.has(cId)) {
+      if (compat.compatibilityType === 'incompatible') continue;
+      if (compat.compatibilityType === 'required' && !selectedIds.has(cId)) {
         if (!requiredIds.includes(cId)) requiredIds.push(cId);
       }
-      if (compat.compatibilityType === 'recommended' && !materialIds.has(cId)) {
+      if (compat.compatibilityType === 'recommended' && !selectedIds.has(cId)) {
         if (!recommendations.find((r) => r.materialId === cId)) {
           recommendations.push({
             materialId: cId,
@@ -104,9 +150,9 @@ async function calcSurface(
     }
   }
 
-  let requiredMaterials: typeof materials = [];
+  let requiredToAdd: typeof candidates = [];
   if (requiredIds.length > 0) {
-    requiredMaterials = await prisma.material.findMany({
+    const rawRequired = await prisma.material.findMany({
       where: { id: { in: requiredIds }, isActive: true, isAvailable: true, deletedAt: null },
       include: {
         category: { select: { name: true } },
@@ -116,12 +162,31 @@ async function calcSurface(
         },
       },
     });
-    for (const req of requiredMaterials) {
-      warnings.push(`Автоматически добавлен: "${req.name}" (обязателен для работы)`);
+    for (const req of rawRequired) {
+      const allCurrentIds = [...selected, ...requiredToAdd].map((s) => s.id);
+      const conflictRec = await prisma.materialCompatibility.findFirst({
+        where: {
+          compatibilityType: 'incompatible',
+          OR: [
+            { materialId: req.id, compatibleMaterialId: { in: allCurrentIds } },
+            { materialId: { in: allCurrentIds }, compatibleMaterialId: req.id },
+          ],
+        },
+        include: { material: { select: { name: true } }, compatibleMaterial: { select: { name: true } } },
+      });
+      if (conflictRec) {
+        const conflictName = conflictRec.materialId === req.id
+          ? conflictRec.compatibleMaterial.name
+          : conflictRec.material.name;
+        warnings.push(`Пропущен обязательный "${req.name}" — несовместим с "${conflictName}"`);
+      } else {
+        requiredToAdd.push(req);
+        warnings.push(`Автоматически добавлен: "${req.name}" (обязателен для работы)`);
+      }
     }
   }
 
-  const allMaterials = [...materials, ...requiredMaterials];
+  const allMaterials = [...selected, ...requiredToAdd];
 
   const items = allMaterials.map((m) => {
     const consumption = parseFloat(m.consumptionPerM2.toString());
@@ -133,7 +198,7 @@ async function calcSurface(
     const rawQty = surfaceArea * consumption * wasteFactor;
     const packageCount = Math.ceil(rawQty / pkgQty);
     const quantity = packageCount * pkgQty;
-    const totalPrice = packageCount * price; // покупаем упаковки, не дробное количество
+    const totalPrice = packageCount * price;
 
     return {
       materialId: m.id,
@@ -156,6 +221,62 @@ async function calcSurface(
   const subtotal = items.reduce((sum, i) => sum + i.totalPrice, 0);
 
   return { surface: dbSurface, label: SURFACE_LABEL[dbSurface], surfaceArea, items, subtotal, warnings, recommendations };
+}
+
+async function calcSection(
+  sectionId: string,
+  sectionSlug: string,
+  sectionName: string,
+  dbRepair: RepairLevel,
+  area: number,
+): Promise<SurfaceGroup & { warnings: string[]; recommendations: RecommendationItem[] }> {
+  const candidates = await prisma.material.findMany({
+    where: {
+      sectionId,
+      repairLevel: dbRepair,
+      isActive: true,
+      isAvailable: true,
+      deletedAt: null,
+      stockQuantity: { gt: 0 },
+    },
+    include: {
+      category: { select: { name: true } },
+      manufacturer: { select: { name: true } },
+      compatibilities: {
+        include: { compatibleMaterial: { select: { id: true, name: true } } },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const warnings: string[] = [];
+
+  if (!candidates.length) {
+    return { surface: sectionSlug as SurfaceType, label: sectionName, surfaceArea: area, items: [], subtotal: 0, warnings, recommendations: [] };
+  }
+
+  // Жадный отбор с двунаправленной проверкой incompatible
+  const { selected, skippedWarnings } = await filterCompatible(candidates);
+  warnings.push(...skippedWarnings);
+
+  const items = selected.map((m) => {
+    const consumption = parseFloat(m.consumptionPerM2.toString());
+    const pkgQty = parseFloat(m.packageQuantity.toString());
+    const price = parseFloat(m.price.toString());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const wasteFactor = (m as any).wasteFactor ? parseFloat(String((m as any).wasteFactor)) : 1.1;
+    const rawQty = area * consumption * wasteFactor;
+    const packageCount = Math.ceil(rawQty / pkgQty);
+    const quantity = packageCount * pkgQty;
+    const totalPrice = packageCount * price;
+    return {
+      materialId: m.id, quantity, packageCount, unitPrice: price, totalPrice,
+      material: { id: m.id, name: m.name, unit: m.unit, packageUnit: m.packageUnit, packageQuantity: pkgQty, category: m.category, manufacturer: m.manufacturer },
+    };
+  });
+
+  const subtotal = items.reduce((s, i) => s + i.totalPrice, 0);
+  return { surface: sectionSlug as SurfaceType, label: sectionName, surfaceArea: area, items, subtotal, warnings, recommendations: [] };
 }
 
 export async function GET() {
@@ -197,7 +318,7 @@ export async function GET() {
         id: c.id,
         projectName,
         roomType: c.roomType,
-        surfaceType: isFullRoom ? 'full_room' : SURF_MAP_REV[c.surfaceType] ?? c.surfaceType,
+        surfaceType: isFullRoom ? 'full_room' : (c.surfaceType ? SURF_MAP_REV[c.surfaceType] ?? c.surfaceType : 'walls'),
         repairLevel: LEVEL_MAP[c.repairLevel] ?? c.repairLevel,
         length: c.length,
         width: c.width,
@@ -230,10 +351,14 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
-      projectName, roomType: rawRoomType, surfaceType, length, width, height, repairLevel, budget,
+      projectName, roomType: rawRoomType, surfaceType, sections: sectionsInput, length, width, height, repairLevel, budget,
       windowCount = '0', windowWidth = '1.4', windowHeight = '1.2',
       doorCount = '1', doorWidth = '0.9', doorHeight = '2.1',
     } = body;
+
+    const sectionsMap: Record<string, boolean> = sectionsInput && typeof sectionsInput === 'object'
+      ? sectionsInput as Record<string, boolean>
+      : {};
 
     let roomType: string = rawRoomType ?? '';
     if (roomType.startsWith('custom:')) {
@@ -320,7 +445,8 @@ export async function POST(request: NextRequest) {
     };
 
     type BudgetOpt = {
-      currentMaterial: string; alternativeMaterial: string; alternativeManufacturer: string;
+      currentMaterial: string; currentMaterialId: string;
+      alternativeMaterial: string; alternativeMaterialId: string; alternativeManufacturer: string;
       currentUnitPrice: number; alternativeUnitPrice: number; savings: number; savingsPercent: number; reason: string | null;
     };
     let budgetOptimizations: BudgetOpt[] = [];
@@ -333,12 +459,31 @@ export async function POST(request: NextRequest) {
       const altData = await prisma.materialAlternative.findMany({
         where: { materialId: { in: top5Ids } },
         include: {
+          material: {
+            select: { categoryId: true, sectionId: true, surfaceType: true, unit: true, repairLevel: true },
+          },
           alternativeMaterial: {
-            select: { name: true, price: true, manufacturer: { select: { name: true } } },
+            select: {
+              name: true, price: true,
+              categoryId: true, sectionId: true, surfaceType: true, unit: true, repairLevel: true,
+              manufacturer: { select: { name: true } },
+            },
           },
         },
       });
+      const REPAIR_ORDER_OPT: Record<string, number> = { econom: 0, standard: 1, premium: 2 };
       budgetOptimizations = altData
+        .filter((alt) => {
+          const m = alt.material;
+          const a = alt.alternativeMaterial;
+          if (m.categoryId !== a.categoryId) return false;
+          if (m.unit !== a.unit) return false;
+          if (m.surfaceType && a.surfaceType && m.surfaceType !== a.surfaceType) return false;
+          if (m.sectionId && a.sectionId && m.sectionId !== a.sectionId) return false;
+          const repairDiff = Math.abs((REPAIR_ORDER_OPT[m.repairLevel] ?? 0) - (REPAIR_ORDER_OPT[a.repairLevel] ?? 0));
+          if (repairDiff > 1) return false;
+          return true;
+        })
         .map((alt) => {
           const cur = allItems.find((i) => i.materialId === alt.materialId);
           if (!cur) return null;
@@ -347,7 +492,9 @@ export async function POST(request: NextRequest) {
           if (savings <= 0) return null;
           return {
             currentMaterial: cur.material.name,
+            currentMaterialId: cur.materialId,
             alternativeMaterial: alt.alternativeMaterial.name,
+            alternativeMaterialId: alt.alternativeMaterialId,
             alternativeManufacturer: alt.alternativeMaterial.manufacturer.name,
             currentUnitPrice: Math.round(cur.unitPrice),
             alternativeUnitPrice: Math.round(altPrice),
@@ -366,14 +513,14 @@ export async function POST(request: NextRequest) {
       g.recommendations.map((r) => ({ ...r, surface: isFullRoom ? g.label : undefined })),
     );
 
-    const dbSurfaceFirst: SurfaceType = isFullRoom ? 'wall' : SURFACE_MAP[surfaceType];
+    const dbSurfaceFirst: SurfaceType | undefined = isFullRoom ? 'wall' : SURFACE_MAP[surfaceType] ?? undefined;
 
     const calculation = await prisma.calculation.create({
       data: {
         userId: session.user.id,
         ...(projectName ? { projectName } : {}),
         roomType,
-        surfaceType: dbSurfaceFirst,
+        ...(dbSurfaceFirst ? { surfaceType: dbSurfaceFirst } : {}),
         length: l,
         width: w,
         height: needsHeight && !isNaN(h) ? h : null,
@@ -403,9 +550,56 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     });
 
-    const surfaceGroups: SurfaceGroup[] = rawGroups.map(
-      ({ warnings: _w, recommendations: _r, ...g }) => g,
-    );
+    // Сохраняем выбранные секции для расчёта
+    const activeSlugs = Object.entries(sectionsMap).filter(([, v]) => v).map(([k]) => k);
+    if (activeSlugs.length > 0) {
+      const dbSections = await prisma.repairSection.findMany({
+        where: { slug: { in: activeSlugs } },
+        select: { id: true, slug: true },
+      });
+      const subtotalMap = new Map(rawGroups.map((g) => [g.surface.toString(), g.subtotal]));
+      const slugToSurface: Record<string, string> = { walls: 'wall', floor: 'floor', ceiling: 'ceiling' };
+      await prisma.calculationSection.createMany({
+        data: dbSections.map((sec) => ({
+          calculationId: calculation.id,
+          sectionId: sec.id,
+          enabled: true,
+          subtotal: subtotalMap.get(slugToSurface[sec.slug] ?? sec.slug) ?? 0,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    // Получаем ID созданных VariantItem для возврата в ответе
+    const createdVariants = await prisma.variant.findMany({
+      where: { calculationId: calculation.id },
+      include: {
+        items: { where: { isDeleted: false }, select: { id: true, materialId: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const surfaceGroups = rawGroups.map(({ warnings: _w, recommendations: _r, ...g }, gi) => {
+      const variant = createdVariants[gi];
+      const idQueue = new Map<string, string[]>();
+      if (variant) {
+        for (const vi of variant.items) {
+          const q = idQueue.get(vi.materialId) ?? [];
+          q.push(vi.id);
+          idQueue.set(vi.materialId, q);
+        }
+      }
+      return {
+        ...g,
+        variantId: variant?.id ?? null,
+        items: g.items.map((item) => {
+          const q = idQueue.get(item.materialId) ?? [];
+          const variantItemId = q.shift() ?? null;
+          idQueue.set(item.materialId, q);
+          return { ...item, variantItemId };
+        }),
+      };
+    });
 
     const allItems = rawGroups.flatMap((g) => g.items);
     const uniqueCategories = [...new Set(allItems.map((i) => i.material.category.name))];

@@ -25,7 +25,7 @@ export async function PATCH(
 
     const data: Record<string, unknown> = {};
     const fields = [
-      'name', 'categoryId', 'manufacturerId', 'repairLevel', 'surfaceType',
+      'name', 'categoryId', 'manufacturerId', 'repairLevel', 'surfaceType', 'sectionId',
       'unit', 'packageUnit', 'description', 'imageUrl', 'isAvailable', 'isActive',
     ];
     for (const f of fields) {
